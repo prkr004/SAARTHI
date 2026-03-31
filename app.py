@@ -16,8 +16,11 @@ from query import (
     format_source_label,
 )
 
+# ── Import model configuration ─────────────────────────────────────────
+from models_config import AVAILABLE_MODELS, get_model_by_id, get_model_info_text, get_recommended_model
+
 # ── Hardcoded optimal settings ──────────────────────────────────────
-MODEL_NAME = "llama3"
+DEFAULT_MODEL = "phi:2.7b"  # Changed to lighter default for low-resource systems
 TOP_K = 5                       # sweet-spot: enough context without noise
 COMPARISON_METHOD = "both"      # textual diff + AI summary
 
@@ -118,6 +121,9 @@ st.markdown(
 if "history" not in st.session_state:
     st.session_state.history = []
 
+if "selected_model" not in st.session_state:
+    st.session_state.selected_model = get_recommended_model()  # Auto-recommend for Ryzen 5 4500U
+
 
 # ── Reusable UI helpers ─────────────────────────────────────────────────
 def _render_sources(sources: list) -> None:
@@ -155,6 +161,44 @@ st.caption(
     "Ask questions grounded in indexed RBI regulatory documents. "
     "SAARTHI automatically detects when to compare versions across circular editions."
 )
+
+# ── Model selector ──────────────────────────────────────────────────────
+with st.expander("🤖 Model Settings", expanded=False):
+    col1, col2 = st.columns([1.5, 1])
+    
+    with col1:
+        model_options = {model["name"]: model["id"] for model in AVAILABLE_MODELS}
+        selected_model_name = st.selectbox(
+            "Choose AI Model",
+            options=list(model_options.keys()),
+            index=list(model_options.values()).index(st.session_state.selected_model),
+            help="Select based on your computer's capabilities"
+        )
+        st.session_state.selected_model = model_options[selected_model_name]
+    
+    with col2:
+        model_config = get_model_by_id(st.session_state.selected_model)
+        if model_config:
+            st.metric("Current", model_config["label"], delta=model_config["parameters"])
+    
+    # Show detailed info about selected model
+    if model_config:
+        st.divider()
+        st.markdown(get_model_info_text(model_config))
+        
+        # Show all models comparison
+        st.divider()
+        st.subheader("Available Models")
+        for model in AVAILABLE_MODELS:
+            with st.container():
+                col_name, col_ram, col_speed = st.columns([2, 1, 1])
+                with col_name:
+                    status = "✓ Current" if model["id"] == st.session_state.selected_model else ""
+                    st.write(f"**{model['name']}** {model['label']} {status}")
+                with col_ram:
+                    st.caption(f"RAM: {model['ram_needed']}")
+                with col_speed:
+                    st.caption(f"Speed: {model['speed']}")
 
 # ── Index check ─────────────────────────────────────────────────────────
 if not Path(INDEX_PATH).exists():
@@ -226,7 +270,7 @@ if question:
                     result = ask_temporal_question(
                         question=question,
                         k=TOP_K,
-                        model_name=MODEL_NAME,
+                        model_name=st.session_state.selected_model,
                         comparison_method=COMPARISON_METHOD,
                     )
                 except Exception as exc:
@@ -282,7 +326,7 @@ if question:
                     result = ask_question(
                         question=question,
                         k=TOP_K,
-                        model_name=MODEL_NAME,
+                        model_name=st.session_state.selected_model,
                     )
                     answer = result["answer"]
                     sources = result["sources"]
@@ -290,8 +334,8 @@ if question:
                     answer = (
                         "**Could not connect to the language model.**\n\n"
                         "Please ensure Ollama is running on your machine "
-                        f"(`ollama serve`) and the model **{MODEL_NAME}** is available "
-                        f"(`ollama pull {MODEL_NAME}`)."
+                        f"(`ollama serve`) and the model **{st.session_state.selected_model}** is available "
+                        f"(`ollama pull {st.session_state.selected_model}`)."
                     )
                     sources = []
                 except FileNotFoundError:

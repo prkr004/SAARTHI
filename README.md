@@ -19,15 +19,15 @@ It supports:
 
 ## Prerequisites
 
-1. Python 3.11+ (the project was developed with Python 3.14).
-2. Ollama installed and running locally.
-3. Ollama model pulled locally (default in code: `llama3`).
+1. Python 3.11–3.12 (recommended: 3.12).
+2. Ollama >= 0.50.0 installed and running locally ([ollama.ai](https://ollama.ai)).
+3. Ollama model pulled locally (default in code: `llama3.1:8b`).
 
 Example Ollama setup:
 
 ```powershell
+ollama pull llama3.1:8b
 ollama serve
-ollama pull llama3
 ```
 
 ## Quick Start (Windows PowerShell)
@@ -73,11 +73,12 @@ streamlit run app.py
 
 ## How Teammates Should Work
 
-1. Pull latest code.
-2. Create fresh virtual environment.
-3. Run `pip install -r requirements.txt`.
-4. Rebuild index after any PDF changes: `python build_vectorstore.py`.
-5. Start app: `streamlit run app.py`.
+1. Pull latest code (skip `.venv/`, `__pycache__/`, `faiss_index/` — they're in `.gitignore`).
+2. Create fresh virtual environment: `python -m venv .venv`.
+3. Activate it and install: `pip install -r requirements.txt`.
+4. Ensure Ollama is running: `ollama serve` (in separate terminal).
+5. Rebuild index after any PDF changes: `python build_vectorstore.py`.
+6. Start app: `streamlit run app.py`.
 
 ## Common Issues
 

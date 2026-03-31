@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.llms import Ollama
+from langchain_community.llms.ollama import OllamaLLM
 from langchain_community.vectorstores import FAISS
 from langchain_core.prompts import PromptTemplate
 
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 INDEX_PATH = "faiss_index"
 DEFAULT_K = 4
-DEFAULT_OLLAMA_MODEL = "llama3"
+DEFAULT_OLLAMA_MODEL = "llama3.1:8b"
 
 # ── Known-document registry ─────────────────────────────────────────────
 # Maps filename substrings (lower-cased) to a friendly name and an
@@ -145,8 +145,8 @@ def load_vectorstore(index_path: str = INDEX_PATH) -> FAISS:
 
 
 @lru_cache(maxsize=4)
-def get_llm(model_name: str = DEFAULT_OLLAMA_MODEL) -> Ollama:
-    return Ollama(model=model_name)
+def get_llm(model_name: str = DEFAULT_OLLAMA_MODEL) -> OllamaLLM:
+    return OllamaLLM(model=model_name)
 
 
 # ── Standard RAG ────────────────────────────────────────────────────────
