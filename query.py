@@ -12,7 +12,11 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.llms.ollama import OllamaLLM
+# Prefer the standalone provider package when available (newer LangChain split).
+try:
+    from langchain_ollama import OllamaLLM
+except ImportError:  # pragma: no cover - fallback for older langchain-community installs
+    from langchain_community.llms import Ollama as OllamaLLM
 from langchain_community.vectorstores import FAISS
 from langchain_core.prompts import PromptTemplate
 
