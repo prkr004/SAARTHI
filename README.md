@@ -33,7 +33,14 @@ ollama pull llama3.1:8b
 ollama serve
 ```
 
-If you are using the app for employee access, also prepare admin bootstrap credentials before first launch:
+If you are using the app for employee access, a universal default admin is auto-created at startup:
+
+```text
+Employee ID: ADMIN001
+Password: AdminPass#2026
+```
+
+Optionally, you can override admin bootstrap credentials before launch:
 
 ```powershell
 $env:SAARTHI_ADMIN_EMPLOYEE_ID = "ADMIN001"
@@ -88,7 +95,12 @@ If you set the admin environment variables above, keep them in the same terminal
 
 ## Admin Credentials (Bootstrap)
 
-Set admin credentials as environment variables before starting Streamlit. These values are used to create or update the first admin account automatically.
+By default, the app auto-creates/syncs this universal admin on startup:
+
+- Employee ID: `ADMIN001`
+- Password: `AdminPass#2026`
+
+You can override these credentials using environment variables before starting Streamlit.
 
 Windows PowerShell:
 
@@ -105,6 +117,8 @@ Then login with:
 - Password: `AdminPass#2026`
 
 If the employee already exists, startup will sync the admin name/password from these environment values.
+
+Note: Admin login is independent of Streamlit port. Whether the app opens on `localhost:8501`, `localhost:8502`, or another available port, the same admin credentials work.
 
 ## Quick Start (macOS/Linux)
 

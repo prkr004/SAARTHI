@@ -32,6 +32,10 @@ ADMIN_ID_ENV = "SAARTHI_ADMIN_EMPLOYEE_ID"
 ADMIN_NAME_ENV = "SAARTHI_ADMIN_NAME"
 ADMIN_PASSWORD_ENV = "SAARTHI_ADMIN_PASSWORD"
 
+DEFAULT_ADMIN_EMPLOYEE_ID = "ADMIN001"
+DEFAULT_ADMIN_NAME = "Bank Admin"
+DEFAULT_ADMIN_PASSWORD = "AdminPass#2026"
+
 
 @dataclass
 class AuthResult:
@@ -392,18 +396,11 @@ def delete_conversation(conversation_id: int, user_id: int) -> None:
 
 
 def bootstrap_admin_user() -> AuthResult:
-    admin_employee_id = (os.getenv(ADMIN_ID_ENV) or "").strip()
-    admin_name = (os.getenv(ADMIN_NAME_ENV) or "System Admin").strip()
-    admin_password = os.getenv(ADMIN_PASSWORD_ENV) or ""
-
-    if not admin_employee_id or not admin_password:
-        return AuthResult(
-            success=False,
-            message=(
-                "Admin bootstrap skipped. Set SAARTHI_ADMIN_EMPLOYEE_ID and "
-                "SAARTHI_ADMIN_PASSWORD to auto-create admin credentials."
-            ),
-        )
+    # Universal defaults ensure admin login works on any machine
+    # even if environment variables are not configured.
+    admin_employee_id = (os.getenv(ADMIN_ID_ENV) or DEFAULT_ADMIN_EMPLOYEE_ID).strip()
+    admin_name = (os.getenv(ADMIN_NAME_ENV) or DEFAULT_ADMIN_NAME).strip()
+    admin_password = os.getenv(ADMIN_PASSWORD_ENV) or DEFAULT_ADMIN_PASSWORD
 
     validation_error = _validate_registration(admin_employee_id, admin_name, admin_password)
     if validation_error:
