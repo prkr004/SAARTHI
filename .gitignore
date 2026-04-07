@@ -2,6 +2,8 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyo
+*.pyd
 
 # Virtual environments
 .venv/
@@ -14,11 +16,14 @@ rag_env/
 build/
 dist/
 *.egg-info/
+.eggs/
+pip-wheel-metadata/
 
 # IDE / editor
 .vscode/
 .idea/
 *.swp
+*.swo
 
 # OS files
 .DS_Store
@@ -26,11 +31,42 @@ Thumbs.db
 
 # Logs
 *.log
+*.out
+*.err
+
+# Test / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Runtime/process state
+.dev/
+*.pid
+
+# Python tool caches
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
 
 # Local environment variables / secrets
 .env
 .env.*
 
+# Node / frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/coverage/
+frontend/.env
+frontend/.env.*
+
 # Generated vector index artifacts
 faiss_index/
+
+# Local DB / generated runtime data
+data/saarthi_secure.db
+*.sqlite
+*.sqlite3
 

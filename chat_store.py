@@ -106,6 +106,36 @@ def initialize_db() -> None:
             """
         )
 
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_users_employee_id
+            ON users(employee_id)
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_conversations_user_updated
+            ON conversations(user_id, updated_at DESC)
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_messages_conversation_id_id
+            ON messages(conversation_id, id)
+            """
+        )
+
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_messages_conversation_role
+            ON messages(conversation_id, role)
+            """
+        )
+
+        conn.commit()
+
 
 def _hash_password(password: str) -> str:
     salt = secrets.token_bytes(16)
@@ -250,11 +280,13 @@ def list_conversations(user_id: int) -> list[dict]:
         rows = conn.execute(
             """
             SELECT c.id, c.title, c.created_at, c.updated_at,
-                   COUNT(m.id) AS message_count
+                   (
+                       SELECT COUNT(1)
+                       FROM messages m
+                       WHERE m.conversation_id = c.id
+                   ) AS message_count
             FROM conversations c
-            LEFT JOIN messages m ON m.conversation_id = c.id
             WHERE c.user_id = ?
-            GROUP BY c.id
             ORDER BY c.updated_at DESC
             """,
             (user_id,),

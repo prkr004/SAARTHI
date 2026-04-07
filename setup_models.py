@@ -107,7 +107,7 @@ def main():
         print("Invalid choice")
         return
     
-    print("\n✓ Done! You can now start SAARTHI with: streamlit run app.py")
+    print("\n✓ Done! You can now start SAARTHI with: ./scripts/dev-up.ps1")
 
 
 if __name__ == "__main__":
