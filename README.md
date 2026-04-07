@@ -5,12 +5,15 @@ It supports:
 - grounded Q&A over indexed circulars and guidelines
 - temporal/version-aware comparisons between document editions
 - source citation display with official links where available
+- secure employee login/register with Employee ID
+- persistent multi-chat history (ChatGPT-style) with resume support
 
 ## Project Structure
 
 - `app.py`: Streamlit UI entry point
 - `build_vectorstore.py`: builds or rebuilds FAISS index from PDFs in `data/`
 - `query.py`: core retrieval + generation pipeline
+- `chat_store.py`: secure local auth, conversation history, and message persistence
 - `ingestion/`: PDF loading, chunking, metadata schema, vectorstore builder
 - `temporal/`: intent detection, version retrieval, and clause comparison
 - `ui/`: helper UI components for temporal result rendering
@@ -28,6 +31,14 @@ Example Ollama setup:
 ```powershell
 ollama pull llama3.1:8b
 ollama serve
+```
+
+If you are using the app for employee access, also prepare admin bootstrap credentials before first launch:
+
+```powershell
+$env:SAARTHI_ADMIN_EMPLOYEE_ID = "ADMIN001"
+$env:SAARTHI_ADMIN_NAME = "Bank Admin"
+$env:SAARTHI_ADMIN_PASSWORD = "AdminPass#2026"
 ```
 
 ## Quick Start (Windows PowerShell)
@@ -60,6 +71,40 @@ streamlit run app.py
 ```
 
 The app will open in your browser (usually `http://localhost:8501`).
+
+If you set the admin environment variables above, keep them in the same terminal session before launching Streamlit so the admin account is created or synced at startup.
+
+## Secure Access And Saved Chats
+
+- On first use, employees should register with `Full Name`, `Employee ID`, and a strong password.
+- Password policy requires at least 12 characters and a mix of upper/lower/number/special characters.
+- Login protection includes temporary lockout after repeated failed attempts.
+- Each employee has isolated conversation storage in `data/saarthi_secure.db`.
+- Chats persist across refreshes and browser restarts for the same employee.
+- Sidebar includes:
+  - `+ New Chat` to start a fresh conversation
+  - previous chat list to reopen and continue where you left off
+  - `✎` rename action and `🗑` delete action for each chat
+
+## Admin Credentials (Bootstrap)
+
+Set admin credentials as environment variables before starting Streamlit. These values are used to create or update the first admin account automatically.
+
+Windows PowerShell:
+
+```powershell
+$env:SAARTHI_ADMIN_EMPLOYEE_ID = "ADMIN001"
+$env:SAARTHI_ADMIN_NAME = "Bank Admin"
+$env:SAARTHI_ADMIN_PASSWORD = "AdminPass#2026"
+streamlit run app.py
+```
+
+Then login with:
+
+- Employee ID: `ADMIN001`
+- Password: `AdminPass#2026`
+
+If the employee already exists, startup will sync the admin name/password from these environment values.
 
 ## Quick Start (macOS/Linux)
 
