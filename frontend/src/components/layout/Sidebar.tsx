@@ -1,4 +1,5 @@
 import type { ConversationSummary } from "../../lib/api/types";
+import { useTheme } from "../../hooks/useTheme";
 
 interface SidebarProps {
   userName: string;
@@ -25,6 +26,8 @@ export function Sidebar({
   onDeleteConversation,
   onLogout,
 }: SidebarProps) {
+  const { theme, toggleTheme } = useTheme();
+
   return (
     <div className="sidebar">
       <header className="sidebar-header">
@@ -32,6 +35,9 @@ export function Sidebar({
         <p>
           {userName} ({employeeId})
         </p>
+        <button type="button" className="theme-toggle" onClick={toggleTheme} aria-label="Toggle color theme">
+          {theme === "dark" ? "Switch to Light" : "Switch to Dark"}
+        </button>
       </header>
 
       <button type="button" className="button button--primary" onClick={onCreateConversation}>
