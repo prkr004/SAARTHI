@@ -5,8 +5,8 @@ FastAPI backend for auth, chat history, model metadata, RAG Q&A, and temporal co
 ## Local Run
 
 ```powershell
-cd "C:\4th Year\cap_trial"
-.\.venv\Scripts\python.exe -m uvicorn backend.app.main:app --reload --port 8000
+.\.venv\Scripts\Activate.ps1
+python -m uvicorn backend.app.main:app --reload --port 8000
 ```
 
 Open docs:
@@ -19,7 +19,6 @@ Health endpoints:
 ## Environment Setup
 
 ```powershell
-cd "C:\4th Year\cap_trial"
 Copy-Item .env.example .env
 ```
 
@@ -55,14 +54,12 @@ RAG and Temporal:
 ## Test Commands
 
 ```powershell
-cd "C:\4th Year\cap_trial"
 .\.venv\Scripts\python.exe -m pytest backend/tests -q
 ```
 
 ## Profiling Command
 
 ```powershell
-cd "C:\4th Year\cap_trial"
 .\.venv\Scripts\python.exe backend/scripts/profile_phase5.py
 ```
 

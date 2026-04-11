@@ -3,17 +3,54 @@ import { useNavigate } from "react-router-dom";
 
 import { MessageBubble } from "../components/chat/MessageBubble";
 import { MessageComposer } from "../components/chat/MessageComposer";
-import { ModelSelector } from "../components/chat/ModelSelector";
 import { AppShell } from "../components/layout/AppShell";
 import { Sidebar } from "../components/layout/Sidebar";
 import { useAuth } from "../hooks/useAuth";
 import { api } from "../lib/api/endpoints";
 import { ApiClientError } from "../lib/api/client";
-import type { ConversationSummary, FrontendMessage, MessageItem, ModelConfig } from "../lib/api/types";
+import type { ConversationSummary, FrontendMessage, MessageItem } from "../lib/api/types";
 import { toUserErrorMessage } from "../lib/errors";
+import { getWorkspacePreferences } from "../lib/preferences";
 import { storage } from "../lib/storage";
 
-const DEFAULT_TOP_K = 5;
+const PROMPT_GROUPS = [
+  {
+    title: "Digital Lending",
+    prompts: [
+      "Summarize key obligations for digital lending apps under RBI guidelines.",
+      "What disclosures are mandatory before loan disbursal in digital lending?",
+      "What restrictions apply to lending service providers in RBI guidance?",
+      "List compliance checkpoints for first-time digital loan onboarding.",
+    ],
+  },
+  {
+    title: "KYC & Due Diligence",
+    prompts: [
+      "Explain customer due diligence steps under the RBI KYC Master Direction.",
+      "When is enhanced due diligence required for customer onboarding?",
+      "What are KYC record retention requirements and timelines?",
+      "What red flags should trigger periodic KYC review escalation?",
+    ],
+  },
+  {
+    title: "Temporal Comparison",
+    prompts: [
+      "How did the latest digital lending circular change borrower consent requirements?",
+      "Compare 2022 vs latest guidance on cooling-off period obligations.",
+      "What changed in grievance redressal expectations across versions?",
+      "Which clauses were tightened in the latest circular compared to previous one?",
+    ],
+  },
+  {
+    title: "Data Protection",
+    prompts: [
+      "How does DPDP 2023 intersect with RBI digital lending compliance?",
+      "What data minimization practices are expected in lending workflows?",
+      "What should be included in consent notices for personal data processing?",
+      "What are safe defaults for storing customer KYC and lending records?",
+    ],
+  },
+] as const;
 
 function createMessageId() {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -39,8 +76,8 @@ export function ChatPage() {
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
   const [messages, setMessages] = useState<FrontendMessage[]>([]);
 
-  const [models, setModels] = useState<ModelConfig[]>([]);
-  const [selectedModel, setSelectedModel] = useState("");
+  const [selectedModel, setSelectedModel] = useState<string>(() => storage.getSelectedModel() ?? "");
+  const [preferences, setPreferences] = useState(() => getWorkspacePreferences());
 
   const [question, setQuestion] = useState("");
   const [loadingWorkspace, setLoadingWorkspace] = useState(true);
@@ -53,10 +90,24 @@ export function ChatPage() {
   const scrollAnchorRef = useRef<HTMLDivElement | null>(null);
 
   const hasMessages = messages.length > 0;
+  const featuredPrompts = useMemo(
+    () => PROMPT_GROUPS.flatMap((group) => group.prompts).slice(0, 4),
+    [],
+  );
 
   useEffect(() => {
     scrollAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages]);
+
+  useEffect(() => {
+    function refreshPreferences() {
+      setPreferences(getWorkspacePreferences());
+      setSelectedModel(storage.getSelectedModel() ?? "");
+    }
+
+    window.addEventListener("focus", refreshPreferences);
+    return () => window.removeEventListener("focus", refreshPreferences);
+  }, []);
 
   async function hydrateConversations(preferredConversationId?: number) {
     let nextConversations = await api.listConversations();
@@ -97,18 +148,11 @@ export function ChatPage() {
       setError(null);
 
       try {
-        const [modelsPayload] = await Promise.all([api.listModels(), hydrateConversations()]);
+        await hydrateConversations();
 
         if (!active) {
           return;
         }
-
-        setModels(modelsPayload.models);
-        const persistedModel = storage.getSelectedModel();
-        const modelId = modelsPayload.models.some((model) => model.id === persistedModel)
-          ? (persistedModel as string)
-          : modelsPayload.recommended_model;
-        setSelectedModel(modelId);
       } catch (workspaceError) {
         if (!active) {
           return;
@@ -241,9 +285,9 @@ export function ChatPage() {
 
       const response = await api.askTemporal({
         question: trimmedQuestion,
-        model_id: selectedModel,
-        top_k: DEFAULT_TOP_K,
-        comparison_method: "both",
+        model_id: selectedModel || undefined,
+        top_k: preferences.topK,
+        comparison_method: preferences.comparisonMethod,
       });
 
       const assistantSources = response.formatted_sources.length > 0 ? response.formatted_sources : response.sources;
@@ -289,25 +333,10 @@ export function ChatPage() {
     }
   }
 
-  function handleModelChange(modelId: string) {
-    setSelectedModel(modelId);
-    storage.setSelectedModel(modelId);
-  }
-
   async function handleLogout() {
     await logout();
     navigate("/login", { replace: true });
   }
-
-  const welcomePrompts = useMemo(
-    () => [
-      "What are the key digital lending guidelines?",
-      "Explain the KYC requirements for customer due diligence.",
-      "How has the latest guidance changed from previous versions?",
-      "What is allowed for lending service providers?",
-    ],
-    [],
-  );
 
   return (
     <AppShell
@@ -328,25 +357,33 @@ export function ChatPage() {
           onCreateConversation={handleCreateConversation}
           onRenameConversation={handleRenameConversation}
           onDeleteConversation={handleDeleteConversation}
+          onOpenSettings={() => {
+            setSidebarOpen(false);
+            navigate("/settings");
+          }}
           onLogout={handleLogout}
         />
       }
     >
       <section className="workspace-header">
-        <div>
-          <h1>SAARTHI - Regulatory Q&A Assistant</h1>
-          <p>
-            Ask grounded questions on indexed RBI circulars. Temporal queries are detected automatically for version comparison.
-          </p>
+        <div className="workspace-header__top">
+          <div>
+            <h1>SAARTHI Regulatory Workspace</h1>
+            <p>Focused, source-grounded compliance answers with cleaner reading and fewer distractions.</p>
+          </div>
+          <div className="workspace-header__actions">
+            <button type="button" className="button button--ghost" onClick={() => navigate("/settings")}>Settings</button>
+            <button type="button" className="button button--primary" onClick={handleCreateConversation}>New Chat</button>
+          </div>
+        </div>
+
+        <div className="workspace-kpis" aria-label="Current session profile">
+          <span className="stat-chip">Top-K {preferences.topK}</span>
+          <span className="stat-chip">Compare: {preferences.comparisonMethod}</span>
+          <span className="stat-chip">Model: {selectedModel || "Auto"}</span>
+          <span className="stat-chip">Mode: {preferences.compactChat ? "Compact" : "Comfort"}</span>
         </div>
       </section>
-
-      <ModelSelector
-        models={models}
-        value={selectedModel}
-        loading={loadingWorkspace}
-        onChange={handleModelChange}
-      />
 
       {error ? (
         <p className="notice notice--error" role="alert">
@@ -359,28 +396,71 @@ export function ChatPage() {
         </p>
       ) : null}
 
-      <section className="chat-surface" aria-label="Chat messages">
+      <section className={`chat-surface ${preferences.compactChat ? "is-compact" : ""}`} aria-label="Chat messages">
         {loadingMessages ? <p className="hint">Loading messages...</p> : null}
 
         {!loadingMessages && !hasMessages ? (
           <article className="welcome-card">
             <h2>Namaste, {user?.full_name ?? "there"}</h2>
-            <p>Start with one of these prompts or ask your own compliance question.</p>
-            <ul>
-              {welcomePrompts.map((prompt) => (
+            <p>Start with a focused prompt. Expand the library only when you need more ideas.</p>
+
+            <ul className="prompt-chips">
+              {featuredPrompts.map((prompt) => (
                 <li key={prompt}>
-                  <button type="button" onClick={() => setQuestion(prompt)}>
+                  <button type="button" className="prompt-chip" onClick={() => setQuestion(prompt)}>
                     {prompt}
                   </button>
                 </li>
               ))}
             </ul>
+
+            <details className="prompt-library">
+              <summary>Open full prompt library</summary>
+              <div className="prompt-grid">
+                {PROMPT_GROUPS.map((group) => (
+                  <section key={group.title} className="prompt-group">
+                    <h3>{group.title}</h3>
+                    <ul>
+                      {group.prompts.map((prompt) => (
+                        <li key={prompt}>
+                          <button type="button" className="prompt-chip" onClick={() => setQuestion(prompt)}>
+                            {prompt}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                ))}
+              </div>
+            </details>
           </article>
         ) : null}
 
-        {messages.map((message) => (
-          <MessageBubble key={message.id} message={message} />
-        ))}
+        <div className="chat-feed">
+          {messages.map((message) => (
+            <MessageBubble
+              key={message.id}
+              message={message}
+              showTemporal={preferences.showTemporalDetails}
+              compactSources={!preferences.showSourceSnippets}
+            />
+          ))}
+
+          {sending ? (
+            <article className="message message--assistant message--loading" role="status" aria-live="polite">
+              <header className="message-head">
+                <strong>SAARTHI</strong>
+                <span className="mode-tag">Processing</span>
+              </header>
+              <div className="typing-dots" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </div>
+              <p className="message-text">Reviewing indexed circulars and preparing a grounded response...</p>
+            </article>
+          ) : null}
+        </div>
 
         <div ref={scrollAnchorRef} />
       </section>

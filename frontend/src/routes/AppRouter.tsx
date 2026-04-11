@@ -5,6 +5,7 @@ import { ChatPage } from "../pages/ChatPage.tsx";
 import { LoginPage } from "../pages/LoginPage.tsx";
 import { NotFoundPage } from "../pages/NotFoundPage.tsx";
 import { RegisterPage } from "../pages/RegisterPage.tsx";
+import { SettingsPage } from "../pages/SettingsPage.tsx";
 import { ProtectedRoute } from "./ProtectedRoute";
 
 function PublicOnly({ children }: { children: React.ReactNode }) {
@@ -30,6 +31,7 @@ export function AppRouter() {
     <Routes>
       <Route element={<ProtectedRoute />}>
         <Route path="/" element={<ChatPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
       </Route>
       <Route
         path="/login"

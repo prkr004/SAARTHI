@@ -7,7 +7,6 @@ React + TypeScript frontend for SAARTHI (Phase 4 and Phase 5 hardening).
 1. Install dependencies:
 
 ```powershell
-cd "C:\4th Year\cap_trial\frontend"
 npm install
 ```
 
@@ -40,7 +39,6 @@ Default URL: http://localhost:5173
 ## QA Commands
 
 ```powershell
-cd "C:\4th Year\cap_trial\frontend"
 npm run test
 npm run build
 ```

@@ -34,9 +34,13 @@ export function MessageComposer({ value, disabled, onChange, onSubmit }: Message
         rows={3}
         disabled={disabled}
       />
-      <button type="submit" className="button button--primary" disabled={disabled || value.trim().length === 0}>
-        {disabled ? "Thinking..." : "Send"}
-      </button>
+
+      <div className="composer-row">
+        <span className="composer-hint">Enter to send • Shift+Enter for new line</span>
+        <button type="submit" className="button button--primary" disabled={disabled || value.trim().length === 0}>
+          {disabled ? "Thinking..." : "Send"}
+        </button>
+      </div>
     </form>
   );
 }

@@ -12,7 +12,20 @@ function sourceLabel(source: SourceItem): string {
   return "Source";
 }
 
-export function SourceList({ sources }: { sources: SourceItem[] }) {
+export function SourceList({ sources, compact = false }: { sources: SourceItem[]; compact?: boolean }) {
+  if (sources.length === 0) {
+    return null;
+  }
+
+  return <SourceListView sources={sources} compact={compact} />;
+}
+
+interface SourceListViewProps {
+  sources: SourceItem[];
+  compact: boolean;
+}
+
+export function SourceListView({ sources, compact }: SourceListViewProps) {
   if (sources.length === 0) {
     return null;
   }
@@ -40,7 +53,13 @@ export function SourceList({ sources }: { sources: SourceItem[] }) {
                   {pageSuffix}
                 </span>
               )}
-              {snippet ? <p>{snippet.slice(0, 600)}</p> : null}
+
+              {snippet && !compact ? (
+                <details className="source-snippet">
+                  <summary>Preview excerpt</summary>
+                  <p>{snippet.slice(0, 600)}</p>
+                </details>
+              ) : null}
             </li>
           );
         })}

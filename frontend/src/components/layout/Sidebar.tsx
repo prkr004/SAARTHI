@@ -11,6 +11,7 @@ interface SidebarProps {
   onCreateConversation: () => void;
   onRenameConversation: (conversationId: number, currentTitle: string) => void;
   onDeleteConversation: (conversationId: number) => void;
+  onOpenSettings?: () => void;
   onLogout: () => void;
 }
 
@@ -24,6 +25,7 @@ export function Sidebar({
   onCreateConversation,
   onRenameConversation,
   onDeleteConversation,
+  onOpenSettings,
   onLogout,
 }: SidebarProps) {
   const { theme, toggleTheme } = useTheme();
@@ -40,49 +42,62 @@ export function Sidebar({
         </button>
       </header>
 
-      <button type="button" className="button button--primary" onClick={onCreateConversation}>
-        + New Chat
-      </button>
+      <div className="sidebar-actions">
+        <button type="button" className="button button--primary" onClick={onCreateConversation}>
+          + New Chat
+        </button>
+        {onOpenSettings ? (
+          <button type="button" className="button button--ghost" onClick={onOpenSettings}>
+            Settings
+          </button>
+        ) : null}
+      </div>
 
       <section className="sidebar-section" aria-label="Conversations">
-        <h3>Your Chats</h3>
-        {loading ? <p className="hint">Loading chats...</p> : null}
-        {!loading && conversations.length === 0 ? <p className="hint">No chats yet.</p> : null}
+        <details className="sidebar-fold" open>
+          <summary>
+            <h3>Your Chats</h3>
+          </summary>
 
-        <ul className="conversation-list">
-          {conversations.map((conversation) => {
-            const isActive = conversation.id === activeConversationId;
-            return (
-              <li key={conversation.id} className={`conversation-item ${isActive ? "is-active" : ""}`}>
-                <button
-                  type="button"
-                  className="conversation-open"
-                  onClick={() => onSelectConversation(conversation.id)}
-                >
-                  {conversation.title || "New Chat"}
-                </button>
-                <div className="conversation-actions">
+          {loading ? <p className="hint">Loading chats...</p> : null}
+          {!loading && conversations.length === 0 ? <p className="hint">No chats yet.</p> : null}
+
+          <ul className="conversation-list">
+            {conversations.map((conversation) => {
+              const isActive = conversation.id === activeConversationId;
+              return (
+                <li key={conversation.id} className={`conversation-item ${isActive ? "is-active" : ""}`}>
                   <button
                     type="button"
-                    className="icon-btn"
-                    onClick={() => onRenameConversation(conversation.id, conversation.title)}
-                    aria-label={`Rename ${conversation.title}`}
+                    className="conversation-open"
+                    onClick={() => onSelectConversation(conversation.id)}
                   >
-                    Rename
+                    {conversation.title || "New Chat"}
                   </button>
-                  <button
-                    type="button"
-                    className="icon-btn danger"
-                    onClick={() => onDeleteConversation(conversation.id)}
-                    aria-label={`Delete ${conversation.title}`}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+
+                  <div className="conversation-actions">
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      onClick={() => onRenameConversation(conversation.id, conversation.title)}
+                      aria-label={`Rename ${conversation.title}`}
+                    >
+                      Rename
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-btn danger"
+                      onClick={() => onDeleteConversation(conversation.id)}
+                      aria-label={`Delete ${conversation.title}`}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </details>
       </section>
 
       <button type="button" className="button button--ghost" onClick={onLogout}>

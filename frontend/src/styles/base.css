@@ -303,9 +303,46 @@ select {
   gap: 0.58rem;
 }
 
+.sidebar-actions {
+  display: grid;
+  gap: 0.5rem;
+}
+
 .sidebar-section h3 {
   margin: 0;
   font-size: 1rem;
+}
+
+.sidebar-fold {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--card-strong) 84%, transparent);
+  padding: 0.45rem 0.55rem;
+}
+
+.sidebar-fold > summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.sidebar-fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.sidebar-fold > summary h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.sidebar-fold > summary h3::after {
+  content: "▾";
+  font-size: 0.85rem;
+  transition: transform 150ms ease;
+}
+
+.sidebar-fold:not([open]) > summary h3::after {
+  transform: rotate(-90deg);
 }
 
 .conversation-list {
@@ -351,6 +388,22 @@ select {
   margin-top: 0.42rem;
 }
 
+.conversation-manage {
+  margin-top: 0.35rem;
+}
+
+.conversation-manage summary {
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+
+.conversation-menu {
+  margin-top: 0.35rem;
+  display: flex;
+  gap: 0.35rem;
+}
+
 .icon-btn {
   border: 1px solid var(--line);
   background: var(--card-strong);
@@ -366,12 +419,42 @@ select {
 
 .workspace-header {
   border: 1px solid var(--line);
-  border-radius: 18px;
-  padding: 1.05rem;
+  border-radius: 20px;
+  padding: 1.05rem 1.1rem;
   background:
-    linear-gradient(135deg, color-mix(in srgb, var(--spot-a) 60%, transparent), transparent 40%),
+    radial-gradient(circle at 80% 10%, color-mix(in srgb, var(--spot-b) 38%, transparent), transparent 46%),
+    linear-gradient(135deg, color-mix(in srgb, var(--spot-a) 72%, transparent), transparent 42%),
     color-mix(in srgb, var(--card-strong) 88%, transparent);
   box-shadow: var(--elev-1);
+}
+
+.workspace-header__top {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.9rem;
+  align-items: flex-start;
+}
+
+.workspace-header__actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.workspace-kpis {
+  margin-top: 0.8rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.stat-chip {
+  font-size: 0.77rem;
+  border-radius: 999px;
+  padding: 0.28rem 0.6rem;
+  border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--line));
+  background: color-mix(in srgb, var(--chip) 65%, transparent);
+  color: var(--chip-text);
 }
 
 .workspace-header h1 {
@@ -450,12 +533,22 @@ select {
 .chat-surface {
   border: 1px solid var(--line);
   border-radius: 18px;
-  padding: 0.92rem;
+  padding: 1rem;
   background: var(--card);
-  min-height: 42vh;
+  min-height: 48vh;
   display: grid;
   gap: 0.8rem;
   backdrop-filter: blur(8px);
+}
+
+.chat-feed {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.chat-surface.is-compact .message {
+  padding: 0.58rem;
+  border-radius: 10px;
 }
 
 .welcome-card {
@@ -480,6 +573,67 @@ select {
   list-style: none;
   display: grid;
   gap: 0.47rem;
+}
+
+.prompt-chips {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 0.7rem;
+}
+
+.prompt-chip {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--card-strong) 90%, transparent);
+  text-align: left;
+  width: 100%;
+  padding: 0.48rem 0.66rem;
+  cursor: pointer;
+  transition: border-color 140ms ease, transform 140ms ease;
+}
+
+.prompt-chip:hover {
+  border-color: color-mix(in srgb, var(--primary) 58%, var(--line));
+  transform: translateY(-1px);
+}
+
+.prompt-library {
+  border-top: 1px solid var(--line);
+  padding-top: 0.6rem;
+}
+
+.prompt-library summary {
+  cursor: pointer;
+  color: var(--primary-strong);
+  font-weight: 600;
+}
+
+.prompt-grid {
+  margin-top: 0.7rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0.65rem;
+}
+
+.prompt-group {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.55rem;
+  background: color-mix(in srgb, var(--card-strong) 85%, transparent);
+}
+
+.prompt-group h3 {
+  margin: 0 0 0.45rem;
+  font-size: 0.94rem;
+}
+
+.prompt-group ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.4rem;
 }
 
 .welcome-card button {
@@ -518,6 +672,11 @@ select {
   border: 1px solid color-mix(in srgb, var(--primary) 45%, transparent);
   color: var(--primary-strong);
   background: var(--chip);
+}
+
+.pending-tag {
+  font-size: 0.72rem;
+  color: var(--ink-soft);
 }
 
 .message-text {
@@ -570,9 +729,181 @@ select {
   font-size: 0.88rem;
 }
 
+.source-snippet {
+  margin-top: 0.35rem;
+}
+
+.source-snippet summary {
+  cursor: pointer;
+  font-size: 0.83rem;
+  color: var(--ink-soft);
+}
+
+.source-snippet p {
+  margin-top: 0.3rem;
+}
+
 .composer {
   display: grid;
   gap: 0.58rem;
+}
+
+.composer-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.composer-hint {
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+
+.message--loading {
+  border-style: dashed;
+}
+
+.typing-dots {
+  display: inline-flex;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.typing-dots span {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 70%, transparent);
+  animation: typing-bounce 900ms ease-in-out infinite;
+}
+
+.typing-dots span:nth-child(2) {
+  animation-delay: 140ms;
+}
+
+.typing-dots span:nth-child(3) {
+  animation-delay: 280ms;
+}
+
+@keyframes typing-bounce {
+  0%,
+  80%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  40% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+.settings-stage {
+  min-height: 100dvh;
+  padding: clamp(0.9rem, 2.4vw, 1.55rem);
+  display: grid;
+  gap: 0.9rem;
+}
+
+.settings-header {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 0.95rem 1rem;
+  background: color-mix(in srgb, var(--card) 90%, transparent);
+  box-shadow: var(--elev-1);
+  display: flex;
+  justify-content: space-between;
+  gap: 0.7rem;
+  align-items: flex-start;
+}
+
+.settings-header h1 {
+  margin: 0;
+  font-size: clamp(1.3rem, 2.2vw, 1.75rem);
+}
+
+.settings-header p {
+  margin: 0.35rem 0 0;
+  color: var(--ink-soft);
+}
+
+.settings-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.settings-card {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--card) 92%, transparent);
+  padding: 0.9rem;
+  display: grid;
+  gap: 0.72rem;
+}
+
+.settings-card h2 {
+  margin: 0;
+  font-size: 1.02rem;
+}
+
+.settings-card p {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.52rem 0.62rem;
+  background: color-mix(in srgb, var(--card-strong) 86%, transparent);
+}
+
+.switch-row input {
+  accent-color: var(--primary);
+}
+
+.theme-choice-group {
+  display: flex;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.theme-choice {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.38rem 0.72rem;
+  background: var(--card-strong);
+  cursor: pointer;
+}
+
+.theme-choice.is-active {
+  border-color: color-mix(in srgb, var(--primary) 70%, var(--line));
+  background: var(--chip);
+}
+
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.settings-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.pill {
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--card-strong) 90%, transparent);
+  padding: 0.24rem 0.62rem;
+  font-size: 0.78rem;
 }
 
 .composer textarea {
@@ -666,5 +997,34 @@ select {
 
   .model-meta {
     grid-template-columns: 1fr;
+  }
+
+  .workspace-header__top {
+    flex-direction: column;
+  }
+
+  .workspace-header__actions {
+    width: 100%;
+  }
+
+  .workspace-header__actions .button {
+    flex: 1;
+  }
+
+  .prompt-chips {
+    grid-template-columns: 1fr;
+  }
+
+  .composer-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-header {
+    flex-direction: column;
   }
 }
