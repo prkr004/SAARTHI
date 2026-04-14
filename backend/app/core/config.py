@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     temporal_request_timeout_seconds: int = Field(default=120, ge=10, le=420)
     readiness_require_vector_index: bool = False
     faiss_index_path: str = "faiss_index/index.faiss"
+    hybrid_vector_weight: float = Field(default=0.7, ge=0.0, le=1.0)
+    hybrid_keyword_weight: float = Field(default=0.3, ge=0.0, le=1.0)
+    hybrid_candidate_multiplier: int = Field(default=4, ge=1, le=20)
+    hybrid_keyword_min_token_length: int = Field(default=3, ge=1, le=20)
     include_internal_error_details: bool | None = None
 
     model_config = SettingsConfigDict(
@@ -52,6 +56,8 @@ class Settings(BaseSettings):
     def validate_security_options(self) -> "Settings":
         if self.cors_allow_credentials and "*" in self.cors_origins:
             raise ValueError("Wildcard CORS origins are not allowed when credentials are enabled.")
+        if (self.hybrid_vector_weight + self.hybrid_keyword_weight) <= 0:
+            raise ValueError("At least one hybrid retrieval weight must be greater than zero.")
         return self
 
     @property

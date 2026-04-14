@@ -192,3 +192,15 @@ Phase 5 complete:
 - Included RBI + SEBI + DPDP sources from `data/` in the default manifest.
 - Preserved index output path defaults (`faiss_index`) and runtime readiness assumptions.
 - Preserved backward compatibility for existing indexed chunks by keeping chunk metadata parsing tolerant for older metadata.
+
+## 9. Phase 2 Delta (2026-04-14) - Hybrid Retrieval Layer
+
+- Added hybrid retrieval in `query.py` that merges FAISS vector relevance and keyword overlap relevance with weighted ranking.
+- Kept FAISS retrieval as the base path and layered keyword scoring over indexed chunk content + metadata.
+- Introduced configurable hybrid controls via backend settings:
+  - `hybrid_vector_weight`
+  - `hybrid_keyword_weight`
+  - `hybrid_candidate_multiplier`
+  - `hybrid_keyword_min_token_length`
+- Preserved existing response envelope and payload keys for `/api/v1/chat/ask` and `/api/v1/chat/ask-temporal`.
+- Added deterministic tests for hybrid ranking behavior and response-shape stability in `backend/tests/test_rag_api.py`.

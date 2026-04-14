@@ -9,7 +9,7 @@ import os
 import re
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Any, Iterable, Optional, Tuple
 
 from langchain_community.embeddings import HuggingFaceEmbeddings
 # Prefer the standalone provider package when available (newer LangChain split).
@@ -18,6 +18,7 @@ try:
 except ImportError:  # pragma: no cover - fallback for older langchain-community installs
     from langchain_community.llms import Ollama as OllamaLLM
 from langchain_community.vectorstores import FAISS
+from langchain_core.documents import Document
 from langchain_core.prompts import PromptTemplate
 
 from temporal.comparator import compare_clauses
@@ -33,6 +34,12 @@ EMBEDDING_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
 INDEX_PATH = "faiss_index"
 DEFAULT_K = 4
 DEFAULT_OLLAMA_MODEL = "llama3.1:8b"
+DEFAULT_HYBRID_VECTOR_WEIGHT = 0.7
+DEFAULT_HYBRID_KEYWORD_WEIGHT = 0.3
+DEFAULT_HYBRID_CANDIDATE_MULTIPLIER = 4
+DEFAULT_HYBRID_KEYWORD_MIN_TOKEN_LENGTH = 3
+
+_TOKEN_RE = re.compile(r"[A-Za-z0-9]+")
 
 # ── Known-document registry ─────────────────────────────────────────────
 # Maps filename substrings (lower-cased) to a friendly name and an
@@ -153,6 +160,236 @@ def get_llm(model_name: str = DEFAULT_OLLAMA_MODEL) -> OllamaLLM:
     return OllamaLLM(model=model_name)
 
 
+@lru_cache(maxsize=1)
+def get_hybrid_retrieval_settings() -> dict[str, float | int]:
+    """Load hybrid retrieval controls from backend settings if available.
+
+    Falls back to environment/default values when running standalone.
+    """
+    vector_weight = DEFAULT_HYBRID_VECTOR_WEIGHT
+    keyword_weight = DEFAULT_HYBRID_KEYWORD_WEIGHT
+    candidate_multiplier = DEFAULT_HYBRID_CANDIDATE_MULTIPLIER
+    keyword_min_token_length = DEFAULT_HYBRID_KEYWORD_MIN_TOKEN_LENGTH
+
+    try:
+        from backend.app.core.config import get_settings
+
+        settings = get_settings()
+        vector_weight = float(settings.hybrid_vector_weight)
+        keyword_weight = float(settings.hybrid_keyword_weight)
+        candidate_multiplier = int(settings.hybrid_candidate_multiplier)
+        keyword_min_token_length = int(settings.hybrid_keyword_min_token_length)
+    except Exception:
+        vector_weight = float(os.getenv("SAARTHI_HYBRID_VECTOR_WEIGHT", vector_weight))
+        keyword_weight = float(os.getenv("SAARTHI_HYBRID_KEYWORD_WEIGHT", keyword_weight))
+        candidate_multiplier = int(
+            os.getenv("SAARTHI_HYBRID_CANDIDATE_MULTIPLIER", candidate_multiplier)
+        )
+        keyword_min_token_length = int(
+            os.getenv(
+                "SAARTHI_HYBRID_KEYWORD_MIN_TOKEN_LENGTH",
+                keyword_min_token_length,
+            )
+        )
+
+    vector_weight = max(vector_weight, 0.0)
+    keyword_weight = max(keyword_weight, 0.0)
+    total_weight = vector_weight + keyword_weight
+    if total_weight <= 0:
+        vector_weight = DEFAULT_HYBRID_VECTOR_WEIGHT
+        keyword_weight = DEFAULT_HYBRID_KEYWORD_WEIGHT
+        total_weight = vector_weight + keyword_weight
+
+    return {
+        "vector_weight": vector_weight / total_weight,
+        "keyword_weight": keyword_weight / total_weight,
+        "candidate_multiplier": max(1, candidate_multiplier),
+        "keyword_min_token_length": max(1, keyword_min_token_length),
+    }
+
+
+def _tokenize(text: str, min_token_length: int) -> set[str]:
+    if not text:
+        return set()
+    return {
+        token.lower()
+        for token in _TOKEN_RE.findall(text)
+        if len(token) >= min_token_length
+    }
+
+
+def _doc_key(doc: Document) -> tuple[str, str, str]:
+    metadata = getattr(doc, "metadata", {}) or {}
+    source = str(metadata.get("source", ""))
+    page = str(metadata.get("page", ""))
+    snippet = (getattr(doc, "page_content", "") or "")[:200]
+    return source, page, snippet
+
+
+def _iter_all_docs(vectorstore: FAISS) -> Iterable[Document]:
+    docstore = getattr(vectorstore, "docstore", None)
+    mapping = getattr(vectorstore, "index_to_docstore_id", {})
+    if docstore is None:
+        return []
+
+    docs: list[Document] = []
+    for doc_id in mapping.values():
+        doc = docstore.search(doc_id)
+        if doc is not None:
+            docs.append(doc)
+    return docs
+
+
+def _keyword_score(doc: Document, query_tokens: set[str], min_token_length: int) -> float:
+    if not query_tokens:
+        return 0.0
+
+    metadata = getattr(doc, "metadata", {}) or {}
+    searchable = " ".join(
+        [
+            getattr(doc, "page_content", "") or "",
+            str(metadata.get("document_title", "")),
+            str(metadata.get("source", "")),
+            str(metadata.get("regulator", "")),
+        ]
+    )
+    doc_tokens = _tokenize(searchable, min_token_length)
+    if not doc_tokens:
+        return 0.0
+
+    overlap = query_tokens.intersection(doc_tokens)
+    if not overlap:
+        return 0.0
+
+    coverage = len(overlap) / len(query_tokens)
+    title_tokens = _tokenize(str(metadata.get("document_title", "")), min_token_length)
+    title_overlap = (
+        len(query_tokens.intersection(title_tokens)) / len(query_tokens)
+        if title_tokens
+        else 0.0
+    )
+    return coverage + (0.35 * title_overlap)
+
+
+def _vector_candidates(
+    vectorstore: FAISS,
+    question: str,
+    pool_k: int,
+) -> tuple[list[Document], dict[tuple[str, str, str], float]]:
+    try:
+        scored = vectorstore.similarity_search_with_score(question, k=pool_k)
+    except Exception:
+        scored = []
+
+    if scored:
+        docs = [doc for doc, _ in scored if doc is not None]
+        distances = [float(distance) for _, distance in scored]
+        min_distance = min(distances)
+        max_distance = max(distances)
+
+        normalized: dict[tuple[str, str, str], float] = {}
+        for doc, distance in scored:
+            if doc is None:
+                continue
+            if max_distance == min_distance:
+                score = 1.0
+            else:
+                score = 1.0 - ((float(distance) - min_distance) / (max_distance - min_distance))
+            normalized[_doc_key(doc)] = max(0.0, min(1.0, score))
+        return docs, normalized
+
+    docs = vectorstore.similarity_search(question, k=pool_k)
+    normalized = {}
+    count = len(docs)
+    for idx, doc in enumerate(docs):
+        if count <= 1:
+            normalized[_doc_key(doc)] = 1.0
+        else:
+            normalized[_doc_key(doc)] = 1.0 - (idx / (count - 1))
+    return docs, normalized
+
+
+def _keyword_candidates(
+    vectorstore: FAISS,
+    question: str,
+    pool_k: int,
+    min_token_length: int,
+) -> tuple[list[Document], dict[tuple[str, str, str], float]]:
+    query_tokens = _tokenize(question, min_token_length)
+    if not query_tokens:
+        return [], {}
+
+    scored: list[tuple[Document, float]] = []
+    for doc in _iter_all_docs(vectorstore):
+        score = _keyword_score(doc, query_tokens, min_token_length)
+        if score > 0:
+            scored.append((doc, score))
+
+    if not scored:
+        return [], {}
+
+    scored.sort(key=lambda item: item[1], reverse=True)
+    top = scored[:pool_k]
+    max_score = top[0][1]
+    normalized = {
+        _doc_key(doc): (score / max_score if max_score > 0 else 0.0)
+        for doc, score in top
+    }
+    docs = [doc for doc, _ in top]
+    return docs, normalized
+
+
+def retrieve_relevant_docs(
+    vectorstore: FAISS,
+    question: str,
+    k: int,
+) -> list[Document]:
+    """Retrieve top-k chunks using weighted vector + keyword hybrid ranking."""
+    settings = get_hybrid_retrieval_settings()
+    pool_k = max(k, int(settings["candidate_multiplier"]) * k)
+
+    vector_docs, vector_scores = _vector_candidates(vectorstore, question, pool_k)
+    keyword_docs, keyword_scores = _keyword_candidates(
+        vectorstore,
+        question,
+        pool_k,
+        int(settings["keyword_min_token_length"]),
+    )
+
+    if not vector_docs and not keyword_docs:
+        return []
+
+    merged_docs: dict[tuple[str, str, str], Document] = {}
+    for doc in vector_docs:
+        merged_docs[_doc_key(doc)] = doc
+    for doc in keyword_docs:
+        merged_docs[_doc_key(doc)] = doc
+
+    weighted: list[tuple[float, float, float, Document]] = []
+    vector_weight = float(settings["vector_weight"])
+    keyword_weight = float(settings["keyword_weight"])
+
+    for key, doc in merged_docs.items():
+        vector_score = vector_scores.get(key, 0.0)
+        keyword_score = keyword_scores.get(key, 0.0)
+        combined = (vector_weight * vector_score) + (keyword_weight * keyword_score)
+        weighted.append((combined, vector_score, keyword_score, doc))
+
+    weighted.sort(key=lambda item: (item[0], item[1], item[2]), reverse=True)
+    selected_docs = [doc for _, _, _, doc in weighted[:k]]
+
+    if not selected_docs:
+        return vector_docs[:k]
+
+    logger.debug(
+        "Hybrid retrieval selected %d docs (vector_candidates=%d, keyword_candidates=%d)",
+        len(selected_docs),
+        len(vector_docs),
+        len(keyword_docs),
+    )
+    return selected_docs
+
+
 # ── Standard RAG ────────────────────────────────────────────────────────
 def ask_question(
     question: str,
@@ -167,8 +404,7 @@ def ask_question(
         raise ValueError("Please enter a question before submitting.")
 
     vectorstore = load_vectorstore()
-    retriever = vectorstore.as_retriever(search_kwargs={"k": k})
-    docs = retriever.invoke(question)
+    docs = retrieve_relevant_docs(vectorstore, question, k)
 
     if not docs:
         return {

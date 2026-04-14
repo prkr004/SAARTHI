@@ -5,6 +5,7 @@ from __future__ import annotations
 import chat_store
 import pytest
 from fastapi.testclient import TestClient
+from langchain_core.documents import Document
 
 from backend.app.main import app
 
@@ -74,6 +75,41 @@ def test_qa_endpoint_success(client: TestClient, monkeypatch):
     assert body["data"]["mode"] == "qa"
     assert body["data"]["answer"]
     assert len(body["data"]["formatted_sources"]) == 1
+
+
+def test_qa_response_shape_stable_for_frontend(client: TestClient, monkeypatch):
+    headers = _auth_headers(client, employee_id="EMP4014")
+
+    monkeypatch.setattr(
+        "backend.app.api.routers.rag.ask_question",
+        lambda **kwargs: {
+            "answer": "Stable envelope answer.",
+            "sources": [
+                {
+                    "content": "Clause excerpt",
+                    "metadata": {"source": "digital_lending_2025.pdf", "page": 5},
+                }
+            ],
+        },
+    )
+
+    response = client.post(
+        "/api/v1/chat/ask",
+        headers=headers,
+        json={"question": "Explain borrower consent", "model_id": "phi:2.7b", "top_k": 4},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    data = body["data"]
+
+    assert set(["mode", "answer", "sources", "formatted_sources", "metadata"]).issubset(data.keys())
+    assert data["mode"] == "qa"
+    assert isinstance(data["sources"], list)
+    assert isinstance(data["formatted_sources"], list)
+    assert isinstance(data["metadata"], dict)
+    assert "top_k" in data["metadata"]
+    assert "elapsed_ms" in data["metadata"]
 
 
 def test_qa_predefined_path(client: TestClient):
@@ -254,3 +290,73 @@ def test_temporal_timeout_error_mapping(client: TestClient, monkeypatch):
     assert response.status_code == 504
     body = response.json()
     assert body["error"]["code"] == "request_timeout"
+
+
+def test_hybrid_ranking_prefers_keyword_signal(monkeypatch):
+    import query as query_module
+
+    class FakeDocStore:
+        def __init__(self, docs: dict[str, Document]):
+            self.docs = docs
+
+        def search(self, doc_id: str):
+            return self.docs.get(doc_id)
+
+    class FakeVectorStore:
+        def __init__(self, scored_docs: list[tuple[Document, float]]):
+            self.scored_docs = scored_docs
+            self.index_to_docstore_id = {
+                idx: f"doc-{idx}" for idx, _ in enumerate(scored_docs)
+            }
+            self.docstore = FakeDocStore(
+                {f"doc-{idx}": doc for idx, (doc, _) in enumerate(scored_docs)}
+            )
+
+        def similarity_search_with_score(self, question: str, k: int):
+            return self.scored_docs[:k]
+
+        def similarity_search(self, question: str, k: int):
+            return [doc for doc, _ in self.scored_docs[:k]]
+
+    vector_favored_doc = Document(
+        page_content="Reserve ratio and branch authorization framework.",
+        metadata={"source": "vector_doc.pdf", "page": 1, "document_title": "Reserve Policy"},
+    )
+    keyword_favored_doc = Document(
+        page_content="Digital lending borrower consent requirements and grievance timelines.",
+        metadata={"source": "keyword_doc.pdf", "page": 2, "document_title": "Digital Lending Consent"},
+    )
+
+    fake_store = FakeVectorStore(
+        [
+            (vector_favored_doc, 0.01),
+            (keyword_favored_doc, 1.20),
+        ]
+    )
+
+    class DummyLLM:
+        def invoke(self, final_prompt: str) -> str:
+            return "Hybrid answer"
+
+    monkeypatch.setattr(query_module, "load_vectorstore", lambda: fake_store)
+    monkeypatch.setattr(query_module, "get_llm", lambda model_name="": DummyLLM())
+    monkeypatch.setattr(
+        query_module,
+        "get_hybrid_retrieval_settings",
+        lambda: {
+            "vector_weight": 0.2,
+            "keyword_weight": 0.8,
+            "candidate_multiplier": 4,
+            "keyword_min_token_length": 3,
+        },
+    )
+
+    result = query_module.ask_question(
+        question="What are borrower consent requirements in digital lending?",
+        k=1,
+        model_name="phi:2.7b",
+    )
+
+    assert result["answer"] == "Hybrid answer"
+    assert len(result["sources"]) == 1
+    assert result["sources"][0]["metadata"]["source"] == "keyword_doc.pdf"
