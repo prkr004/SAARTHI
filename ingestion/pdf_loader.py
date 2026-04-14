@@ -28,7 +28,7 @@ from typing import List, Optional
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-from ingestion.metadata_schema import ChunkMetadata
+from ingestion.metadata_schema import ChunkMetadata, validate_manifest_entry
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +47,7 @@ def load_and_chunk_pdf(
     amends: Optional[str] = None,
     chunk_size: int = DEFAULT_CHUNK_SIZE,
     chunk_overlap: int = DEFAULT_CHUNK_OVERLAP,
+    strict_metadata: bool = False,
 ) -> list:
     """Load a PDF and return chunked Documents with full regulatory metadata.
 
@@ -58,6 +59,8 @@ def load_and_chunk_pdf(
         Regulatory metadata (all optional for backward compatibility).
     chunk_size, chunk_overlap
         Chunking parameters forwarded to ``RecursiveCharacterTextSplitter``.
+    strict_metadata
+        When ``True``, enforce strict manifest-style metadata validation.
 
     Returns
     -------
@@ -67,6 +70,21 @@ def load_and_chunk_pdf(
     pdf_path = str(Path(pdf_path).resolve())
     if not Path(pdf_path).exists():
         raise FileNotFoundError(f"PDF not found: {pdf_path}")
+
+    if strict_metadata:
+        validate_manifest_entry(
+            {
+                "pdf_path": pdf_path,
+                "regulator": regulator,
+                "document_title": document_title,
+                "version_date": version_date,
+                "effective_date": effective_date,
+                "amends": amends,
+                "status": status,
+                "chunk_size": chunk_size,
+                "chunk_overlap": chunk_overlap,
+            }
+        )
 
     loader = PyPDFLoader(pdf_path)
     raw_docs = loader.load()

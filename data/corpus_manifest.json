@@ -1,0 +1,164 @@
+[
+  {
+    "pdf_path": "digital_lending_2022.pdf.pdf",
+    "regulator": "RBI",
+    "document_title": "Guidelines on Digital Lending",
+    "version_date": "2022-09-02",
+    "effective_date": "2022-11-30",
+    "amends": null,
+    "status": "Superseded"
+  },
+  {
+    "pdf_path": "digital_lending_2025.pdf.pdf",
+    "regulator": "RBI",
+    "document_title": "Guidelines on Digital Lending",
+    "version_date": "2025-04-01",
+    "effective_date": "2025-04-01",
+    "amends": "digital_lending_2022.pdf.pdf",
+    "status": "Active"
+  },
+  {
+    "pdf_path": "DLG.pdf",
+    "regulator": "RBI",
+    "document_title": "Digital Lending Guidelines - Detailed Reference",
+    "version_date": "2022-09-02",
+    "effective_date": "2022-11-30",
+    "amends": null,
+    "status": "Active"
+  },
+  {
+    "pdf_path": "GUIDELINESDIGITALLENDINGD5C35A71D8124A0E92AEB940A7D25BB3.pdf",
+    "regulator": "RBI",
+    "document_title": "Guidelines on Digital Lending",
+    "version_date": "2022-09-02",
+    "effective_date": "2022-11-30",
+    "amends": null,
+    "status": "Superseded"
+  },
+  {
+    "pdf_path": "MasterDirectionKYC.pdf",
+    "regulator": "RBI",
+    "document_title": "Master Direction on KYC",
+    "version_date": "2016-02-25",
+    "effective_date": "2016-02-25",
+    "amends": null,
+    "status": "Active"
+  },
+  {
+    "pdf_path": "RBI_KYC.pdf",
+    "regulator": "RBI",
+    "document_title": "RBI KYC Compliance Guidance",
+    "version_date": "2023-01-01",
+    "effective_date": "2023-01-01",
+    "amends": "MasterDirectionKYC.pdf",
+    "status": "Active"
+  },
+  {
+    "pdf_path": "RBI (Credit Information Companies).pdf",
+    "regulator": "RBI",
+    "document_title": "RBI Credit Information Companies Framework",
+    "version_date": "2023-06-26",
+    "effective_date": "2023-06-26",
+    "amends": null,
+    "status": "Active"
+  },
+  {
+    "pdf_path": "RBI Cyber Security Framework in Banks.pdf",
+    "regulator": "RBI",
+    "document_title": "Cyber Security Framework in Banks",
+    "version_date": "2016-06-02",
+    "effective_date": "2016-06-02",
+    "amends": null,
+    "status": "Active"
+  },
+  {
+    "pdf_path": "RBI Digital Payment Security.pdf",
+    "regulator": "RBI",
+    "document_title": "Digital Payment Security Controls",
+    "version_date": "2021-02-18",
+    "effective_date": "2021-02-18",
+    "amends": null,
+    "status": "Active"
+  },
+  {
+    "pdf_path": "RBI Information Technology Governance, Risk, Controls and Assurance Practices.pdf",
+    "regulator": "RBI",
+    "document_title": "IT Governance, Risk, Controls and Assurance Practices",
+    "version_date": "2023-11-07",
+    "effective_date": "2023-11-07",
+    "amends": null,
+    "status": "Active"
+  },
+  {
+    "pdf_path": "RBI Outsourcing Guidelines.pdf",
+    "regulator": "RBI",
+    "document_title": "RBI Outsourcing Guidelines",
+    "version_date": "2023-04-10",
+    "effective_date": "2023-04-10",
+    "amends": null,
+    "status": "Active"
+  },
+  {
+    "pdf_path": "RBI Risk Management and Cyber Frauds.pdf",
+    "regulator": "RBI",
+    "document_title": "Risk Management and Cyber Fraud Guidance",
+    "version_date": "2011-06-02",
+    "effective_date": "2011-06-02",
+    "amends": null,
+    "status": "Active"
+  },
+  {
+    "pdf_path": "RBI Storage of Payment System Data.pdf",
+    "regulator": "RBI",
+    "document_title": "Storage of Payment System Data",
+    "version_date": "2018-04-06",
+    "effective_date": "2018-04-06",
+    "amends": null,
+    "status": "Active"
+  },
+  {
+    "pdf_path": "RBI_IT FRAMEWORK.pdf",
+    "regulator": "RBI",
+    "document_title": "RBI IT Framework",
+    "version_date": "2016-11-02",
+    "effective_date": "2016-11-02",
+    "amends": null,
+    "status": "Active"
+  },
+  {
+    "pdf_path": "DPDP_2023.pdf",
+    "regulator": "Government of India",
+    "document_title": "Digital Personal Data Protection Act 2023",
+    "version_date": "2023-08-11",
+    "effective_date": "2023-08-11",
+    "amends": null,
+    "status": "Active"
+  },
+  {
+    "pdf_path": "DPDP_Act.pdf",
+    "regulator": "Government of India",
+    "document_title": "Digital Personal Data Protection Act 2023 (Consolidated Copy)",
+    "version_date": "2023-08-11",
+    "effective_date": "2023-08-11",
+    "amends": "DPDP_2023.pdf",
+    "status": "Active"
+  },
+  {
+    "pdf_path": "SEBI Cybersecurity and Cyber Resilience Framework (CSCRF).pdf",
+    "regulator": "SEBI",
+    "document_title": "SEBI Cybersecurity and Cyber Resilience Framework",
+    "version_date": "2024-08-20",
+    "effective_date": "2024-08-20",
+    "amends": null,
+    "status": "Active"
+  },
+  {
+    "pdf_path": "SEBI Outsourcing of Activities by Intermediaries.pdf",
+    "regulator": "SEBI",
+    "document_title": "SEBI Outsourcing of Activities by Intermediaries",
+    "version_date": "2024-07-15",
+    "effective_date": "2024-07-15",
+    "amends": null,
+    "status": "Active"
+  }
+]

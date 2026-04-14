@@ -41,10 +41,29 @@ ollama pull phi:2.7b
 
 ## Build Vector Store (required before asking RAG questions)
 
-Run after setup, and run again whenever source PDFs are changed:
+The build now reads a corpus manifest at `data/corpus_manifest.json`.
+
+Every manifest entry must include these keys:
+
+- `pdf_path`
+- `regulator`
+- `document_title`
+- `version_date` (YYYY-MM-DD)
+- `effective_date` (YYYY-MM-DD)
+- `amends` (can be `null`, but key is required)
+
+The default manifest already includes RBI + SEBI + DPDP sources from `data/`.
+
+Run after setup, and run again whenever source PDFs or manifest entries are changed:
 
 ```powershell
 .\.venv\Scripts\python.exe build_vectorstore.py
+```
+
+Optional: provide a custom manifest path.
+
+```powershell
+.\.venv\Scripts\python.exe build_vectorstore.py --manifest data/corpus_manifest.json
 ```
 
 ## Run The Project (3 terminals)
@@ -116,6 +135,7 @@ npm run build
 - If backend cannot find dependencies, activate `.venv` in that terminal.
 - If model errors appear, verify `ollama serve` is running and model is pulled.
 - If readiness fails on vector index, rebuild with `build_vectorstore.py`.
+- If vector build fails with manifest validation errors, fix required fields in `data/corpus_manifest.json`.
 
 ## Project docs
 

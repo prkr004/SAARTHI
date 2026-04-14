@@ -183,3 +183,12 @@ Phase 5 complete:
 - Test coverage expanded with Phase 5 hardening + end-to-end API smoke journey.
 - Developer experience improved with one-command local startup scripts for backend/frontend and updated runbooks.
 - Deployment/cutover documentation delivered with go-live criteria, rollback strategy, residual risks, and monitoring checklist.
+
+## 8. Phase 1 Delta (2026-04-14) - Corpus Manifest Onboarding
+
+- Replaced hardcoded corpus configuration in `build_vectorstore.py` with manifest-driven onboarding.
+- Added strict manifest validation for required metadata keys: `regulator`, `document_title`, `version_date`, `effective_date`, and `amends` (nullable key).
+- Introduced `data/corpus_manifest.json` as the default corpus source of truth.
+- Included RBI + SEBI + DPDP sources from `data/` in the default manifest.
+- Preserved index output path defaults (`faiss_index`) and runtime readiness assumptions.
+- Preserved backward compatibility for existing indexed chunks by keeping chunk metadata parsing tolerant for older metadata.
