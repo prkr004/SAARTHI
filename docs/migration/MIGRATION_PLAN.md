@@ -204,3 +204,30 @@ Phase 5 complete:
   - `hybrid_keyword_min_token_length`
 - Preserved existing response envelope and payload keys for `/api/v1/chat/ask` and `/api/v1/chat/ask-temporal`.
 - Added deterministic tests for hybrid ranking behavior and response-shape stability in `backend/tests/test_rag_api.py`.
+
+## 10. Phase 3 Delta (2026-04-14) - Intent Triage Routing
+
+- Upgraded intent logic from binary temporal detection to triage classes in `temporal/intent_detector.py`:
+  - `fact_retrieval`
+  - `timeline_analysis`
+  - `drafting_request`
+- Integrated class-based routing in `/api/v1/chat/ask-temporal`:
+  - fact -> QA fallback path
+  - timeline -> temporal comparison path
+  - drafting -> drafting pipeline entrypoint stub
+- Preserved response envelope shape and existing keys while adding `intent_class` visibility in payload metadata/temporal blocks.
+- Retained `detect_temporal_intent()` as a backward-compatible wrapper for legacy callers.
+- Extended tests for all three classes plus fallback behavior in `backend/tests/test_rag_api.py`.
+
+## 11. Phase 4 Delta (2026-04-14) - Semantic Circular Linking
+
+- Added a new metadata-graph resolver service: `backend/app/services/circular_linking_service.py`.
+- Built relation graph edges from indexed metadata for:
+  - amendment links (`amends` / `amended_by`)
+  - parent-child circular hierarchy (`parent_child`) via title containment and token overlap.
+- Integrated circular-linking output into query paths (`ask_question` and `ask_temporal_question`) with additive optional payload only.
+- Preserved backward compatibility of API envelope and existing response keys while adding optional `circular_linking` output:
+  - `related_circulars`
+  - `related_clauses`
+  - each relation includes `confidence` and `rationale`.
+- Added tests covering resolver structure, confidence/rationale fields, and amendment + parent-child scenarios.

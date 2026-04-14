@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from models_config import AVAILABLE_MODELS, get_model_by_id, get_recommended_model
 from predefined_responses import get_predefined_response
 from query import ask_question, ask_temporal_question, format_source_label
-from temporal.intent_detector import detect_temporal_intent
+from temporal.intent_detector import triage_query_intent
 
 from backend.app.api.deps import get_current_user
 from backend.app.core.config import get_settings
@@ -25,6 +25,22 @@ from backend.app.services.execution import run_with_timeout
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["rag"])
 settings = get_settings()
+
+
+def _empty_circular_linking_payload() -> dict:
+    return {
+        "related_circulars": [],
+        "related_clauses": [],
+    }
+
+
+def _drafting_stub_answer() -> str:
+    return (
+        "Drafting request detected and routed to the drafting pipeline entrypoint. "
+        "Full policy generation is not enabled in this phase yet. "
+        "Please confirm institution type, policy scope, data retention period, and officer names "
+        "to continue once drafting core is implemented."
+    )
 
 
 def _now_iso() -> str:
@@ -142,6 +158,7 @@ def ask(request: Request, payload: AskRequest, _: dict = Depends(get_current_use
                     "answer": predefined,
                     "sources": [],
                     "formatted_sources": [],
+                    "circular_linking": _empty_circular_linking_payload(),
                     "metadata": {
                         "predefined": True,
                         "top_k": payload.top_k,
@@ -169,6 +186,7 @@ def ask(request: Request, payload: AskRequest, _: dict = Depends(get_current_use
                 "answer": result.get("answer", ""),
                 "sources": sources,
                 "formatted_sources": _format_sources(sources),
+                "circular_linking": result.get("circular_linking", _empty_circular_linking_payload()),
                 "metadata": {
                     "predefined": False,
                     "top_k": payload.top_k,
@@ -223,6 +241,8 @@ def ask_temporal(request: Request, payload: AskTemporalRequest, _: dict = Depend
     model_call_started = None
 
     try:
+        intent_class = triage_query_intent(payload.question)
+
         predefined = get_predefined_response(payload.question)
         if predefined:
             elapsed_ms = int((time.perf_counter() - started) * 1000)
@@ -233,8 +253,10 @@ def ask_temporal(request: Request, payload: AskTemporalRequest, _: dict = Depend
                     "answer": predefined,
                     "sources": [],
                     "formatted_sources": [],
+                    "circular_linking": _empty_circular_linking_payload(),
                     "temporal": {
-                        "intent_detected": False,
+                        "intent_detected": intent_class == "timeline_analysis",
+                        "intent_class": intent_class,
                         "executed": False,
                         "fallback": False,
                         "single_version": False,
@@ -243,15 +265,15 @@ def ask_temporal(request: Request, payload: AskTemporalRequest, _: dict = Depend
                         "predefined": True,
                         "top_k": payload.top_k,
                         "comparison_method": payload.comparison_method,
+                        "intent_class": intent_class,
                         "elapsed_ms": elapsed_ms,
                     },
                 },
             )
 
         model_id = _resolve_model_id(payload.model_id)
-        intent_detected = detect_temporal_intent(payload.question)
 
-        if not intent_detected:
+        if intent_class == "fact_retrieval":
             model_call_started = time.perf_counter()
             result = run_with_timeout(
                 ask_question,
@@ -269,8 +291,10 @@ def ask_temporal(request: Request, payload: AskTemporalRequest, _: dict = Depend
                     "answer": result.get("answer", ""),
                     "sources": sources,
                     "formatted_sources": _format_sources(sources),
+                    "circular_linking": result.get("circular_linking", _empty_circular_linking_payload()),
                     "temporal": {
                         "intent_detected": False,
+                        "intent_class": intent_class,
                         "executed": False,
                         "fallback": True,
                         "fallback_reason": "not_temporal_query",
@@ -281,11 +305,45 @@ def ask_temporal(request: Request, payload: AskTemporalRequest, _: dict = Depend
                         "top_k": payload.top_k,
                         "model_id": model_id,
                         "comparison_method": payload.comparison_method,
+                        "intent_class": intent_class,
                         "elapsed_ms": elapsed_ms,
                         "timings_ms": {
                             "model_call": int((time.perf_counter() - model_call_started) * 1000)
                             if model_call_started
                             else None,
+                        },
+                    },
+                },
+            )
+
+        if intent_class == "drafting_request":
+            elapsed_ms = int((time.perf_counter() - started) * 1000)
+            return _success(
+                request,
+                {
+                    "mode": "drafting_stub",
+                    "answer": _drafting_stub_answer(),
+                    "sources": [],
+                    "formatted_sources": [],
+                    "circular_linking": _empty_circular_linking_payload(),
+                    "temporal": {
+                        "intent_detected": False,
+                        "intent_class": intent_class,
+                        "executed": False,
+                        "fallback": True,
+                        "fallback_reason": "drafting_request_stub",
+                        "single_version": False,
+                    },
+                    "metadata": {
+                        "predefined": False,
+                        "top_k": payload.top_k,
+                        "model_id": model_id,
+                        "comparison_method": payload.comparison_method,
+                        "intent_class": intent_class,
+                        "elapsed_ms": elapsed_ms,
+                        "drafting_stub": True,
+                        "timings_ms": {
+                            "model_call": None,
                         },
                     },
                 },
@@ -327,8 +385,10 @@ def ask_temporal(request: Request, payload: AskTemporalRequest, _: dict = Depend
                 "answer": answer,
                 "sources": sources,
                 "formatted_sources": _format_sources(sources),
+                "circular_linking": result.get("circular_linking", _empty_circular_linking_payload()),
                 "temporal": {
                     "intent_detected": True,
+                    "intent_class": intent_class,
                     "executed": True,
                     "fallback": fallback,
                     "fallback_reason": result.get("fallback_reason"),
@@ -343,6 +403,7 @@ def ask_temporal(request: Request, payload: AskTemporalRequest, _: dict = Depend
                     "top_k": payload.top_k,
                     "model_id": model_id,
                     "comparison_method": payload.comparison_method,
+                    "intent_class": intent_class,
                     "elapsed_ms": elapsed_ms,
                     "timings_ms": {
                         "model_call": int((time.perf_counter() - model_call_started) * 1000)

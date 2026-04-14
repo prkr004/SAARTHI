@@ -21,6 +21,7 @@ from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
 from langchain_core.prompts import PromptTemplate
 
+from backend.app.services.circular_linking_service import resolve_circular_links
 from temporal.comparator import compare_clauses
 from temporal.version_retriever import (
     get_latest_two_versions,
@@ -111,6 +112,61 @@ def format_source_label(metadata: dict) -> Tuple[str, Optional[str], Optional[in
     page = metadata.get("page")
     doc_name, url = _match_known_document(raw_source)
     return doc_name, url, page
+
+
+def _empty_circular_linking() -> dict:
+    return {
+        "related_circulars": [],
+        "related_clauses": [],
+    }
+
+
+def _enrich_circular_linking_with_links(circular_linking: dict | None) -> dict:
+    if not isinstance(circular_linking, dict):
+        return _empty_circular_linking()
+
+    related_circulars_raw = circular_linking.get("related_circulars", [])
+    related_clauses_raw = circular_linking.get("related_clauses", [])
+
+    related_circulars: list[dict] = []
+    related_clauses: list[dict] = []
+
+    if isinstance(related_circulars_raw, list):
+        for item in related_circulars_raw:
+            if not isinstance(item, dict):
+                continue
+            enriched = dict(item)
+            source = str(enriched.get("source", ""))
+            _, document_link, _ = format_source_label({"source": source, "page": None})
+            enriched["document_link"] = document_link
+            related_circulars.append(enriched)
+
+    if isinstance(related_clauses_raw, list):
+        for item in related_clauses_raw:
+            if not isinstance(item, dict):
+                continue
+            enriched = dict(item)
+            source = str(enriched.get("source", ""))
+            _, document_link, _ = format_source_label({"source": source, "page": None})
+            enriched["document_link"] = document_link
+            related_clauses.append(enriched)
+
+    return {
+        "related_circulars": related_circulars,
+        "related_clauses": related_clauses,
+    }
+
+
+def _resolve_circular_linking_payload(vectorstore: FAISS, focus_docs: list[Document]) -> dict:
+    if not focus_docs:
+        return _empty_circular_linking()
+
+    try:
+        circular_linking = resolve_circular_links(vectorstore=vectorstore, focus_docs=focus_docs)
+        return _enrich_circular_linking_with_links(circular_linking)
+    except Exception as exc:  # pragma: no cover - additive feature should never break core QA
+        logger.debug("Circular linking resolution skipped: %s", exc)
+        return _empty_circular_linking()
 
 
 # ── Prompt template ─────────────────────────────────────────────────────
@@ -413,6 +469,7 @@ def ask_question(
                 "Try rephrasing or broadening your question."
             ),
             "sources": [],
+            "circular_linking": _empty_circular_linking(),
         }
 
     context = "\n\n".join(doc.page_content for doc in docs)
@@ -423,7 +480,12 @@ def ask_question(
         {"content": doc.page_content, "metadata": doc.metadata}
         for doc in docs
     ]
-    return {"answer": answer, "sources": sources}
+    circular_linking = _resolve_circular_linking_payload(vectorstore, docs)
+    return {
+        "answer": answer,
+        "sources": sources,
+        "circular_linking": circular_linking,
+    }
 
 
 # ── Temporal / version-comparison query ─────────────────────────────────
@@ -469,11 +531,14 @@ def ask_temporal_question(
         return result
 
     if previous_chunks is None:
+        focus_docs = current_chunks[:2] if current_chunks else []
+        circular_linking = _resolve_circular_linking_payload(vectorstore, focus_docs)
         return {
             "fallback": False,
             "single_version": True,
             "document_title": document_title,
             "current_date": current_date,
+            "circular_linking": circular_linking,
         }
 
     # Step 3 — clause-level comparison
@@ -489,6 +554,13 @@ def ask_temporal_question(
         method=comparison_method,
     )
 
+    focus_docs: list[Document] = []
+    if current_chunks:
+        focus_docs.append(current_chunks[0])
+    if previous_chunks:
+        focus_docs.append(previous_chunks[0])
+    circular_linking = _resolve_circular_linking_payload(vectorstore, focus_docs)
+
     return {
         "fallback": False,
         "single_version": False,
@@ -496,6 +568,7 @@ def ask_temporal_question(
         "current_date": current_date,
         "previous_date": previous_date,
         "document_title": document_title,
+        "circular_linking": circular_linking,
     }
 
 

@@ -107,7 +107,7 @@ def test_end_to_end_smoke_login_create_chat_ask_receive_answer_with_sources(clie
     )
     assert add_user.status_code == 201
 
-    monkeypatch.setattr("backend.app.api.routers.rag.detect_temporal_intent", lambda question: True)
+    monkeypatch.setattr("backend.app.api.routers.rag.triage_query_intent", lambda question: "timeline_analysis")
     monkeypatch.setattr(
         "backend.app.api.routers.rag.ask_temporal_question",
         lambda **kwargs: {
