@@ -93,17 +93,18 @@ describe("question ask flow", () => {
       </MemoryRouter>,
     );
 
-    await screen.findByText("Employee Workspace");
+    await screen.findByRole("heading", { name: "SAARTHI" });
     await user.type(
-      screen.getByPlaceholderText("Ask SAARTHI a question about RBI regulatory guidelines..."),
+      screen.getByPlaceholderText(/Ask SAARTHI about RBI regulations/i),
       "How has digital lending changed?",
     );
-    await user.click(screen.getByRole("button", { name: "Send" }));
+    await user.click(screen.getByRole("button", { name: "Send message" }));
 
     await screen.findByText("Disclosure rules were strengthened in the latest circular.");
     expect(screen.getByText("Temporal Compare")).toBeInTheDocument();
-    expect(screen.getByText("View sources (1)")).toBeInTheDocument();
-    expect(screen.getByText("RBI Guidelines on Digital Lending, page 4")).toBeInTheDocument();
+    await user.click(screen.getByText("Sources"));
+    expect(screen.getByRole("link", { name: "RBI Guidelines on Digital Lending" })).toBeInTheDocument();
+    expect(screen.getByText("p. 4")).toBeInTheDocument();
 
     await waitFor(() => {
       expect(apiMock.addMessage).toHaveBeenCalledTimes(2);

@@ -81,8 +81,8 @@ describe("chat workspace", () => {
       </MemoryRouter>,
     );
 
-    await screen.findByText("Employee Workspace");
-    await user.click(screen.getByRole("button", { name: "+ New Chat" }));
+    await screen.findByRole("heading", { name: "SAARTHI" });
+    await user.click(screen.getByRole("button", { name: "New chat" }));
 
     await waitFor(() => {
       expect(apiMock.createConversation).toHaveBeenCalled();
@@ -99,7 +99,7 @@ describe("chat workspace", () => {
         <ChatPage />
       </MemoryRouter>,
     );
-    await screen.findByText("Employee Workspace");
+    await screen.findByRole("heading", { name: "SAARTHI" });
 
     await user.click(screen.getByRole("button", { name: "Rename New Chat" }));
     await waitFor(() => {

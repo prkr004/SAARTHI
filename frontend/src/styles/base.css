@@ -739,12 +739,6 @@ input::placeholder {
   align-items: flex-start;
 }
 
-.workspace-header__actions {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
 .workspace-header--calm {
   background:
     radial-gradient(circle at 88% 4%, color-mix(in srgb, var(--spot-b) 22%, transparent), transparent 44%),

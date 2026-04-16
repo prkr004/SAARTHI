@@ -48,7 +48,7 @@ export function AppShell({
   }, [sidebarOpen]);
 
   return (
-    <div className={`shell ${sidebarOpen ? "shell--sidebar-open" : ""}`}>
+    <div className="shell">
       <button
         className="mobile-sidebar-toggle"
         type="button"
