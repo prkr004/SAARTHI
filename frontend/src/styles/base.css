@@ -157,6 +157,21 @@ input::placeholder {
 :where(a, button, input, textarea, select, summary, [role="button"]):focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--focus-ring) 44%, transparent);
+}
+
+:where(
+  .mobile-sidebar-toggle,
+  .conversation-open,
+  .conversation-manage__summary,
+  .icon-btn,
+  .prompt-chip,
+  .theme-toggle,
+  .sidebar-search,
+  .composer-send,
+  .source-link
+):focus-visible {
+  outline-offset: 3px;
 }
 
 .center-shell {
@@ -214,6 +229,43 @@ input::placeholder {
 .hint {
   color: var(--ink-soft);
   font-size: var(--text-sm);
+}
+
+.hint {
+  line-height: 1.45;
+}
+
+.hint--loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.46rem;
+  width: fit-content;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--surface-1) 88%, transparent);
+  padding: 0.28rem 0.56rem;
+  font-size: 0.8rem;
+}
+
+.hint--loading::before {
+  content: "";
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--primary) 72%, transparent);
+  animation: hint-pulse 1200ms ease-in-out infinite;
+}
+
+@keyframes hint-pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .field {
@@ -1051,6 +1103,7 @@ input::placeholder {
   border-radius: 14px;
   padding: 0.68rem 0.78rem;
   background: color-mix(in srgb, var(--surface-1) 90%, transparent);
+  transition: border-color var(--transition-base), background-color var(--transition-base), box-shadow var(--transition-base);
 }
 
 .message--assistant {
@@ -1116,6 +1169,8 @@ input::placeholder {
   max-width: 76ch;
   line-height: 1.62;
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
   color: color-mix(in srgb, var(--ink) 92%, var(--ink-soft));
 }
 
@@ -1133,6 +1188,7 @@ input::placeholder {
   border: 1px solid color-mix(in srgb, var(--line) 92%, transparent);
   border-radius: 10px;
   background: color-mix(in srgb, var(--surface-1) 86%, transparent);
+  transition: border-color var(--transition-base), background-color var(--transition-base);
 }
 
 .meta-disclosure > summary {
@@ -1145,6 +1201,7 @@ input::placeholder {
   padding: 0.38rem 0.56rem;
   font-size: 0.78rem;
   color: var(--ink-soft);
+  transition: background-color var(--transition-base), color var(--transition-base);
 }
 
 .meta-disclosure > summary::-webkit-details-marker {
@@ -1158,6 +1215,31 @@ input::placeholder {
   border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
   color: var(--primary-strong);
   background: color-mix(in srgb, var(--chip) 60%, transparent);
+}
+
+.meta-disclosure > summary:hover {
+  background: color-mix(in srgb, var(--state-hover) 66%, transparent);
+}
+
+.meta-disclosure[open] > summary {
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 88%, transparent);
+  background: color-mix(in srgb, var(--state-active) 68%, transparent);
+}
+
+.temporal-disclosure[open] .meta-grid,
+.source-list[open] .source-items {
+  animation: reveal-soft 170ms ease both;
+}
+
+@keyframes reveal-soft {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .temporal-disclosure .meta-grid {
@@ -1218,6 +1300,7 @@ input::placeholder {
   color: var(--primary-strong);
   font-size: 0.84rem;
   text-decoration: none;
+  overflow-wrap: anywhere;
 }
 
 .source-link:hover {
@@ -1271,6 +1354,7 @@ input::placeholder {
 .composer-hint {
   font-size: 0.72rem;
   color: var(--ink-soft);
+  letter-spacing: 0.01em;
 }
 
 .composer--home .composer-row {
@@ -1298,6 +1382,7 @@ input::placeholder {
 .message--loading {
   border-style: solid;
   border-color: color-mix(in srgb, var(--primary) 32%, var(--line));
+  background: color-mix(in srgb, var(--surface-1) 92%, transparent);
 }
 
 .typing-dots {
@@ -1458,6 +1543,17 @@ input::placeholder {
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
   border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 @media (prefers-reduced-motion: no-preference) {

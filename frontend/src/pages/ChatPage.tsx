@@ -398,8 +398,13 @@ export function ChatPage() {
       <section
         className={`chat-surface ${preferences.compactChat ? "is-compact" : ""} ${showHomeState ? "chat-surface--home" : "chat-surface--conversation"}`}
         aria-label="Chat messages"
+        aria-busy={loadingMessages || sending}
       >
-        {loadingMessages ? <p className="hint">Loading messages...</p> : null}
+        {loadingMessages ? (
+          <p className="hint hint--loading" role="status" aria-live="polite">
+            Loading conversation...
+          </p>
+        ) : null}
 
         {showHomeState ? (
           <article className="home-stage" aria-label="SAARTHI home">
@@ -413,6 +418,7 @@ export function ChatPage() {
               <MessageComposer
                 value={question}
                 disabled={sending || !activeConversationId}
+                isBusy={sending}
                 onChange={setQuestion}
                 onSubmit={handleSubmitQuestion}
                 context="home"
@@ -494,6 +500,7 @@ export function ChatPage() {
           <MessageComposer
             value={question}
             disabled={sending || !activeConversationId}
+            isBusy={sending}
             onChange={setQuestion}
             onSubmit={handleSubmitQuestion}
             context="conversation"

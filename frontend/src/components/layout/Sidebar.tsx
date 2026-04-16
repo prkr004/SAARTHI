@@ -77,7 +77,7 @@ export function Sidebar({
 
       <section className="sidebar-section" aria-label="Conversations">
         <div className="sidebar-section__header">
-          <h3>Chats</h3>
+          <h3 id="sidebar-chats-heading">Chats</h3>
           <span className="sidebar-count">{conversations.length}</span>
         </div>
 
@@ -93,13 +93,23 @@ export function Sidebar({
           />
         </label>
 
-        {loading ? <p className="hint">Loading chats...</p> : null}
-        {!loading && conversations.length === 0 ? <p className="hint">No chats yet.</p> : null}
+        {loading ? (
+          <p className="hint" role="status" aria-live="polite">
+            Loading chats...
+          </p>
+        ) : null}
+        {!loading && conversations.length === 0 ? (
+          <p className="hint" role="status" aria-live="polite">
+            No chats yet.
+          </p>
+        ) : null}
         {!loading && hasSearch && filteredConversations.length === 0 ? (
-          <p className="hint">No chats match "{searchTerm.trim()}".</p>
+          <p className="hint" role="status" aria-live="polite">
+            No chats match "{searchTerm.trim()}".
+          </p>
         ) : null}
 
-        <ul className="conversation-list">
+        <ul className="conversation-list" aria-labelledby="sidebar-chats-heading">
           {filteredConversations.map((conversation) => {
             const isActive = conversation.id === activeConversationId;
             const title = conversation.title || "New Chat";
@@ -111,6 +121,7 @@ export function Sidebar({
                   className="conversation-open sidebar-touch-target"
                   onClick={() => onSelectConversation(conversation.id)}
                   title={title}
+                  aria-current={isActive ? "page" : undefined}
                 >
                   {title}
                 </button>
@@ -119,10 +130,11 @@ export function Sidebar({
                   <summary
                     className="conversation-manage__summary"
                     aria-label={`Conversation actions for ${title}`}
+                    aria-haspopup="menu"
                   >
                     <span aria-hidden="true">...</span>
                   </summary>
-                  <div className="conversation-menu">
+                  <div className="conversation-menu" role="group" aria-label={`Actions for ${title}`}>
                     <button
                       type="button"
                       className="icon-btn sidebar-touch-target"

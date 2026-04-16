@@ -63,7 +63,7 @@ export function AppShell({
         <span>{sidebarOpen ? "Close" : "Chats"}</span>
       </button>
 
-      <aside id="chat-sidebar" className={`shell-sidebar ${sidebarOpen ? "is-open" : ""}`}>
+      <aside id="chat-sidebar" className={`shell-sidebar ${sidebarOpen ? "is-open" : ""}`} aria-label="Chat sidebar">
         {sidebar}
       </aside>
 
@@ -75,7 +75,9 @@ export function AppShell({
         tabIndex={sidebarOpen ? 0 : -1}
       />
 
-      <main className="shell-main">{children}</main>
+      <main className="shell-main" aria-label="Main workspace">
+        {children}
+      </main>
     </div>
   );
 }
