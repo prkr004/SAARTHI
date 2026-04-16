@@ -18,18 +18,31 @@ interface MessageBubbleProps {
 }
 
 export function MessageBubble({ message, showTemporal = true, compactSources = false }: MessageBubbleProps) {
+  const isUser = message.role === "user";
   const roleLabel = message.role === "user" ? "You" : "SAARTHI";
+  const modeLabel = message.mode ? (MODE_LABELS[message.mode] ?? message.mode) : null;
+  const hasSources = message.sources.length > 0;
 
   return (
-    <article className={`message ${message.role === "user" ? "message--user" : "message--assistant"}`}>
+    <article className={`message ${isUser ? "message--user" : "message--assistant"}`}>
       <header className="message-head">
-        <strong>{roleLabel}</strong>
-        {message.pending ? <span className="pending-tag">Sending...</span> : null}
-        {message.mode ? <span className="mode-tag">{MODE_LABELS[message.mode] ?? message.mode}</span> : null}
+        <div className="message-head__identity">
+          <strong className="message-author">{roleLabel}</strong>
+          {message.pending ? <span className="pending-tag">Sending</span> : null}
+        </div>
+        {modeLabel ? <span className="mode-tag">{modeLabel}</span> : null}
       </header>
-      <p className="message-text">{message.content}</p>
-      {showTemporal ? <TemporalPanel temporal={message.temporal} /> : null}
-      <SourceList sources={message.sources} compact={compactSources} />
+
+      <div className="message-body">
+        <p className="message-text">{message.content}</p>
+      </div>
+
+      {showTemporal || hasSources ? (
+        <div className="message-meta">
+          {showTemporal ? <TemporalPanel temporal={message.temporal} /> : null}
+          <SourceList sources={message.sources} compact={compactSources} />
+        </div>
+      ) : null}
     </article>
   );
 }

@@ -454,7 +454,7 @@ export function ChatPage() {
         ) : null}
 
         {!showHomeState ? (
-          <div className="chat-feed">
+          <div className="chat-feed chat-feed--conversation" aria-live="polite">
             {messages.map((message) => (
               <MessageBubble
                 key={message.id}
@@ -467,7 +467,9 @@ export function ChatPage() {
             {sending ? (
               <article className="message message--assistant message--loading" role="status" aria-live="polite">
                 <header className="message-head">
-                  <strong>SAARTHI</strong>
+                  <div className="message-head__identity">
+                    <strong className="message-author">SAARTHI</strong>
+                  </div>
                   <span className="mode-tag">Processing</span>
                 </header>
                 <div className="typing-dots" aria-hidden="true">
@@ -475,7 +477,9 @@ export function ChatPage() {
                   <span />
                   <span />
                 </div>
-                <p className="message-text">Reviewing indexed circulars and preparing a grounded response...</p>
+                <div className="message-body">
+                  <p className="message-text">Reviewing indexed circulars and preparing a grounded response...</p>
+                </div>
               </article>
             ) : null}
           </div>

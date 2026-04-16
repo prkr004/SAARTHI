@@ -31,33 +31,36 @@ export function SourceListView({ sources, compact }: SourceListViewProps) {
   }
 
   return (
-    <details className="source-list">
-      <summary>View sources ({sources.length})</summary>
-      <ol>
+    <details className="meta-disclosure source-list">
+      <summary>
+        <span>Sources</span>
+        <span className="meta-disclosure__tag">{sources.length}</span>
+      </summary>
+
+      <ol className="source-items">
         {sources.map((source, index) => {
           const label = sourceLabel(source);
           const page = source.page ?? source.metadata?.page;
-          const pageSuffix = typeof page === "number" ? `, page ${page}` : "";
           const snippet = source.snippet ?? source.content;
 
           return (
-            <li key={`${label}-${index}`}>
-              {source.document_link ? (
-                <a href={source.document_link} target="_blank" rel="noreferrer">
-                  {label}
-                  {pageSuffix}
-                </a>
-              ) : (
-                <span>
-                  {label}
-                  {pageSuffix}
-                </span>
-              )}
+            <li key={`${label}-${index}`} className="source-item">
+              <div className="source-item__main">
+                {source.document_link ? (
+                  <a className="source-link" href={source.document_link} target="_blank" rel="noreferrer">
+                    {label}
+                  </a>
+                ) : (
+                  <span className="source-link source-link--muted">{label}</span>
+                )}
+
+                {typeof page === "number" ? <span className="source-page">p. {page}</span> : null}
+              </div>
 
               {snippet && !compact ? (
                 <details className="source-snippet">
                   <summary>Preview excerpt</summary>
-                  <p>{snippet.slice(0, 600)}</p>
+                  <p>{snippet.slice(0, 520)}</p>
                 </details>
               ) : null}
             </li>
