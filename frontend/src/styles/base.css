@@ -659,13 +659,13 @@ input::placeholder {
 
 .workspace-header {
   border: 1px solid var(--line);
-  border-radius: 20px;
-  padding: 1.05rem 1.1rem;
+  border-radius: var(--radius-xl);
+  padding: 0.9rem 1rem;
   background:
-    radial-gradient(circle at 80% 10%, color-mix(in srgb, var(--spot-b) 38%, transparent), transparent 46%),
-    linear-gradient(135deg, color-mix(in srgb, var(--spot-a) 72%, transparent), transparent 42%),
-    color-mix(in srgb, var(--card-strong) 88%, transparent);
-  box-shadow: var(--elev-1);
+    radial-gradient(circle at 82% 10%, color-mix(in srgb, var(--spot-b) 28%, transparent), transparent 44%),
+    linear-gradient(140deg, color-mix(in srgb, var(--spot-a) 56%, transparent), transparent 48%),
+    color-mix(in srgb, var(--surface-1) 90%, transparent);
+  box-shadow: var(--shadow-1);
 }
 
 .workspace-header__top {
@@ -679,6 +679,22 @@ input::placeholder {
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
+}
+
+.workspace-header--calm {
+  background:
+    radial-gradient(circle at 88% 4%, color-mix(in srgb, var(--spot-b) 22%, transparent), transparent 44%),
+    color-mix(in srgb, var(--surface-1) 94%, transparent);
+  box-shadow: none;
+}
+
+.workspace-header--calm .workspace-header__top {
+  justify-content: center;
+}
+
+.workspace-header--calm h1,
+.workspace-header--calm p {
+  text-align: center;
 }
 
 .workspace-kpis {
@@ -699,12 +715,12 @@ input::placeholder {
 
 .workspace-header h1 {
   margin: 0;
-  font-size: clamp(1.24rem, 2.3vw, 1.9rem);
+  font-size: clamp(1.15rem, 2.1vw, 1.72rem);
   letter-spacing: -0.02em;
 }
 
 .workspace-header p {
-  margin: 0.52rem 0 0;
+  margin: 0.4rem 0 0;
   color: var(--ink-soft);
 }
 
@@ -781,6 +797,14 @@ input::placeholder {
   backdrop-filter: blur(8px);
 }
 
+.chat-surface--home {
+  min-height: clamp(530px, 66vh, 780px);
+  align-items: center;
+  background:
+    radial-gradient(circle at 16% 8%, color-mix(in srgb, var(--spot-a) 38%, transparent), transparent 46%),
+    color-mix(in srgb, var(--surface-2) 90%, transparent);
+}
+
 .chat-feed {
   display: grid;
   gap: 0.7rem;
@@ -791,44 +815,96 @@ input::placeholder {
   border-radius: 10px;
 }
 
-.welcome-card {
-  border: 1px dashed color-mix(in srgb, var(--primary) 45%, var(--line));
-  border-radius: 12px;
-  padding: 0.94rem;
-  background: color-mix(in srgb, var(--chip) 70%, transparent);
-}
-
-.welcome-card h2 {
-  margin: 0;
-}
-
-.welcome-card p {
-  margin: 0.42rem 0 0.72rem;
-  color: var(--ink-soft);
-}
-
-.welcome-card ul {
-  margin: 0;
-  padding: 0;
-  list-style: none;
+.home-stage {
+  width: min(900px, 100%);
+  margin-inline: auto;
   display: grid;
-  gap: 0.47rem;
+  gap: 0.88rem;
+  text-align: center;
+}
+
+.home-stage__eyebrow {
+  margin: 0;
+  color: var(--primary-strong);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.home-stage h2 {
+  margin: 0;
+  font-size: clamp(1.6rem, 4vw, 2.48rem);
+  letter-spacing: -0.022em;
+  line-height: 1.18;
+  max-width: 22ch;
+  margin-inline: auto;
+}
+
+.home-stage__subtext {
+  margin: 0;
+  color: var(--ink-soft);
+  max-width: 66ch;
+  margin-inline: auto;
+}
+
+.home-composer {
+  width: min(760px, 100%);
+  margin-inline: auto;
+  border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--line));
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--surface-1) 94%, transparent);
+  box-shadow: var(--shadow-1);
+  padding: 0.68rem;
+}
+
+.home-composer .composer {
+  gap: 0.52rem;
+}
+
+.home-composer .composer textarea {
+  min-height: 100px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-1) 96%, transparent);
+}
+
+.home-prompts {
+  width: min(760px, 100%);
+  margin-inline: auto;
+  display: grid;
+  gap: 0.48rem;
+  text-align: left;
+}
+
+.home-prompts h3 {
+  margin: 0;
+  font-size: 0.79rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
 }
 
 .prompt-chips {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.5rem;
-  margin-bottom: 0.7rem;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .prompt-chip {
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--card-strong) 90%, transparent);
   text-align: left;
   width: 100%;
-  padding: 0.48rem 0.66rem;
+  min-height: 3rem;
+  padding: 0.55rem 0.66rem;
+  display: flex;
+  align-items: center;
+  line-height: 1.35;
+  font-size: 0.85rem;
   cursor: pointer;
   transition: border-color 140ms ease, transform 140ms ease;
 }
@@ -840,32 +916,35 @@ input::placeholder {
 
 .prompt-library {
   border-top: 1px solid var(--line);
-  padding-top: 0.6rem;
+  margin-top: 0.2rem;
+  padding-top: 0.58rem;
 }
 
 .prompt-library summary {
   cursor: pointer;
   color: var(--primary-strong);
   font-weight: 600;
+  font-size: 0.88rem;
 }
 
 .prompt-grid {
-  margin-top: 0.7rem;
+  margin-top: 0.62rem;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: 0.65rem;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.58rem;
 }
 
 .prompt-group {
   border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 0.55rem;
+  border-radius: var(--radius-sm);
+  padding: 0.52rem;
   background: color-mix(in srgb, var(--card-strong) 85%, transparent);
 }
 
 .prompt-group h3 {
-  margin: 0 0 0.45rem;
-  font-size: 0.94rem;
+  margin: 0 0 0.42rem;
+  font-size: 0.84rem;
+  letter-spacing: 0.02em;
 }
 
 .prompt-group ul {
@@ -873,17 +952,7 @@ input::placeholder {
   padding: 0;
   list-style: none;
   display: grid;
-  gap: 0.4rem;
-}
-
-.welcome-card button {
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: var(--card-strong);
-  text-align: left;
-  width: 100%;
-  padding: 0.52rem 0.74rem;
-  cursor: pointer;
+  gap: 0.33rem;
 }
 
 .message {
@@ -1245,6 +1314,35 @@ input::placeholder {
 
   .workspace-header__top {
     flex-direction: column;
+  }
+
+  .workspace-header--calm .workspace-header__top {
+    justify-content: flex-start;
+  }
+
+  .workspace-header--calm h1,
+  .workspace-header--calm p {
+    text-align: left;
+  }
+
+  .chat-surface--home {
+    min-height: auto;
+  }
+
+  .home-stage {
+    text-align: left;
+    gap: 0.72rem;
+  }
+
+  .home-stage h2,
+  .home-stage__subtext {
+    max-width: none;
+    margin-inline: 0;
+  }
+
+  .home-composer,
+  .home-prompts {
+    width: 100%;
   }
 
   .sidebar-actions {

@@ -90,6 +90,7 @@ export function ChatPage() {
   const scrollAnchorRef = useRef<HTMLDivElement | null>(null);
 
   const hasMessages = messages.length > 0;
+  const showHomeState = !loadingMessages && !hasMessages;
   const featuredPrompts = useMemo(
     () => PROMPT_GROUPS.flatMap((group) => group.prompts).slice(0, 4),
     [],
@@ -365,20 +366,22 @@ export function ChatPage() {
         />
       }
     >
-      <section className="workspace-header">
+      <section className={`workspace-header ${showHomeState ? "workspace-header--calm" : ""}`}>
         <div className="workspace-header__top">
           <div>
             <h1>SAARTHI Chat Workspace</h1>
-            <p>Focused, source-grounded compliance answers for RBI-aligned workflows.</p>
+            <p>Source-grounded compliance guidance with focused, conversational navigation.</p>
           </div>
         </div>
 
-        <div className="workspace-kpis" aria-label="Current session profile">
-          <span className="stat-chip">Top-K {preferences.topK}</span>
-          <span className="stat-chip">Compare: {preferences.comparisonMethod}</span>
-          <span className="stat-chip">Model: {selectedModel || "Auto"}</span>
-          <span className="stat-chip">Mode: {preferences.compactChat ? "Compact" : "Comfort"}</span>
-        </div>
+        {!showHomeState ? (
+          <div className="workspace-kpis" aria-label="Current session profile">
+            <span className="stat-chip">Top-K {preferences.topK}</span>
+            <span className="stat-chip">Compare: {preferences.comparisonMethod}</span>
+            <span className="stat-chip">Model: {selectedModel || "Auto"}</span>
+            <span className="stat-chip">Mode: {preferences.compactChat ? "Compact" : "Comfort"}</span>
+          </div>
+        ) : null}
       </section>
 
       {error ? (
@@ -392,76 +395,103 @@ export function ChatPage() {
         </p>
       ) : null}
 
-      <section className={`chat-surface ${preferences.compactChat ? "is-compact" : ""}`} aria-label="Chat messages">
+      <section
+        className={`chat-surface ${preferences.compactChat ? "is-compact" : ""} ${showHomeState ? "chat-surface--home" : ""}`}
+        aria-label="Chat messages"
+      >
         {loadingMessages ? <p className="hint">Loading messages...</p> : null}
 
-        {!loadingMessages && !hasMessages ? (
-          <article className="welcome-card">
-            <h2>Namaste, {user?.full_name ?? "there"}</h2>
-            <p>Start with a focused prompt. Expand the library only when you need more ideas.</p>
+        {showHomeState ? (
+          <article className="home-stage" aria-label="SAARTHI home">
+            <p className="home-stage__eyebrow">Namaste, {user?.full_name ?? "there"}</p>
+            <h2>What should SAARTHI help you review today?</h2>
+            <p className="home-stage__subtext">
+              Ask about RBI circulars, KYC controls, digital lending obligations, or temporal clause changes.
+            </p>
 
-            <ul className="prompt-chips">
-              {featuredPrompts.map((prompt) => (
-                <li key={prompt}>
-                  <button type="button" className="prompt-chip" onClick={() => setQuestion(prompt)}>
-                    {prompt}
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <div className="home-composer" aria-label="Ask SAARTHI">
+              <MessageComposer
+                value={question}
+                disabled={sending || !activeConversationId}
+                onChange={setQuestion}
+                onSubmit={handleSubmitQuestion}
+              />
+            </div>
 
-            <details className="prompt-library">
-              <summary>Open full prompt library</summary>
-              <div className="prompt-grid">
-                {PROMPT_GROUPS.map((group) => (
-                  <section key={group.title} className="prompt-group">
-                    <h3>{group.title}</h3>
-                    <ul>
-                      {group.prompts.map((prompt) => (
-                        <li key={prompt}>
-                          <button type="button" className="prompt-chip" onClick={() => setQuestion(prompt)}>
-                            {prompt}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  </section>
+            <section className="home-prompts" aria-label="Suggested prompts">
+              <h3>Suggested starters</h3>
+              <ul className="prompt-chips">
+                {featuredPrompts.map((prompt) => (
+                  <li key={prompt}>
+                    <button type="button" className="prompt-chip" onClick={() => setQuestion(prompt)}>
+                      {prompt}
+                    </button>
+                  </li>
                 ))}
-              </div>
-            </details>
+              </ul>
+
+              <details className="prompt-library">
+                <summary>Browse full prompt library</summary>
+                <div className="prompt-grid">
+                  {PROMPT_GROUPS.map((group) => (
+                    <section key={group.title} className="prompt-group">
+                      <h3>{group.title}</h3>
+                      <ul>
+                        {group.prompts.map((prompt) => (
+                          <li key={prompt}>
+                            <button type="button" className="prompt-chip" onClick={() => setQuestion(prompt)}>
+                              {prompt}
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  ))}
+                </div>
+              </details>
+            </section>
           </article>
         ) : null}
 
-        <div className="chat-feed">
-          {messages.map((message) => (
-            <MessageBubble
-              key={message.id}
-              message={message}
-              showTemporal={preferences.showTemporalDetails}
-              compactSources={!preferences.showSourceSnippets}
-            />
-          ))}
+        {!showHomeState ? (
+          <div className="chat-feed">
+            {messages.map((message) => (
+              <MessageBubble
+                key={message.id}
+                message={message}
+                showTemporal={preferences.showTemporalDetails}
+                compactSources={!preferences.showSourceSnippets}
+              />
+            ))}
 
-          {sending ? (
-            <article className="message message--assistant message--loading" role="status" aria-live="polite">
-              <header className="message-head">
-                <strong>SAARTHI</strong>
-                <span className="mode-tag">Processing</span>
-              </header>
-              <div className="typing-dots" aria-hidden="true">
-                <span />
-                <span />
-                <span />
-              </div>
-              <p className="message-text">Reviewing indexed circulars and preparing a grounded response...</p>
-            </article>
-          ) : null}
-        </div>
+            {sending ? (
+              <article className="message message--assistant message--loading" role="status" aria-live="polite">
+                <header className="message-head">
+                  <strong>SAARTHI</strong>
+                  <span className="mode-tag">Processing</span>
+                </header>
+                <div className="typing-dots" aria-hidden="true">
+                  <span />
+                  <span />
+                  <span />
+                </div>
+                <p className="message-text">Reviewing indexed circulars and preparing a grounded response...</p>
+              </article>
+            ) : null}
+          </div>
+        ) : null}
 
         <div ref={scrollAnchorRef} />
       </section>
 
-      <MessageComposer value={question} disabled={sending || !activeConversationId} onChange={setQuestion} onSubmit={handleSubmitQuestion} />
+      {!showHomeState ? (
+        <MessageComposer
+          value={question}
+          disabled={sending || !activeConversationId}
+          onChange={setQuestion}
+          onSubmit={handleSubmitQuestion}
+        />
+      ) : null}
 
       <footer className="workspace-footer">
         For informational support only. Validate conclusions against official RBI circulars and qualified compliance advice.
