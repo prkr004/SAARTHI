@@ -415,6 +415,7 @@ export function ChatPage() {
                 disabled={sending || !activeConversationId}
                 onChange={setQuestion}
                 onSubmit={handleSubmitQuestion}
+                context="home"
               />
             </div>
 
@@ -489,12 +490,15 @@ export function ChatPage() {
       </section>
 
       {!showHomeState ? (
-        <MessageComposer
-          value={question}
-          disabled={sending || !activeConversationId}
-          onChange={setQuestion}
-          onSubmit={handleSubmitQuestion}
-        />
+        <div className="composer-dock">
+          <MessageComposer
+            value={question}
+            disabled={sending || !activeConversationId}
+            onChange={setQuestion}
+            onSubmit={handleSubmitQuestion}
+            context="conversation"
+          />
+        </div>
       ) : null}
 
       <footer className="workspace-footer">
