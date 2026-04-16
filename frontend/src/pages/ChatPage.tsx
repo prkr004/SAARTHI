@@ -368,12 +368,8 @@ export function ChatPage() {
       <section className="workspace-header">
         <div className="workspace-header__top">
           <div>
-            <h1>SAARTHI Regulatory Workspace</h1>
-            <p>Focused, source-grounded compliance answers with cleaner reading and fewer distractions.</p>
-          </div>
-          <div className="workspace-header__actions">
-            <button type="button" className="button button--ghost" onClick={() => navigate("/settings")}>Settings</button>
-            <button type="button" className="button button--primary" onClick={handleCreateConversation}>New Chat</button>
+            <h1>SAARTHI Chat Workspace</h1>
+            <p>Focused, source-grounded compliance answers for RBI-aligned workflows.</p>
           </div>
         </div>
 

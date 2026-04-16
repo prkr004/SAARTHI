@@ -21,8 +21,12 @@ export function AppShell({
         onClick={onToggleSidebar}
         aria-expanded={sidebarOpen}
         aria-controls="chat-sidebar"
+        aria-label={sidebarOpen ? "Close chat sidebar" : "Open chat sidebar"}
       >
-        {sidebarOpen ? "Close menu" : "Open menu"}
+        <span className="mobile-sidebar-toggle__icon" aria-hidden="true">
+          =
+        </span>
+        <span>{sidebarOpen ? "Close" : "Chats"}</span>
       </button>
 
       <aside id="chat-sidebar" className={`shell-sidebar ${sidebarOpen ? "is-open" : ""}`}>
