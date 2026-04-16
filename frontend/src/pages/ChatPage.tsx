@@ -396,7 +396,7 @@ export function ChatPage() {
       ) : null}
 
       <section
-        className={`chat-surface ${preferences.compactChat ? "is-compact" : ""} ${showHomeState ? "chat-surface--home" : ""}`}
+        className={`chat-surface ${preferences.compactChat ? "is-compact" : ""} ${showHomeState ? "chat-surface--home" : "chat-surface--conversation"}`}
         aria-label="Chat messages"
       >
         {loadingMessages ? <p className="hint">Loading messages...</p> : null}
@@ -490,7 +490,7 @@ export function ChatPage() {
       </section>
 
       {!showHomeState ? (
-        <div className="composer-dock">
+        <div className="composer-dock composer-dock--conversation">
           <MessageComposer
             value={question}
             disabled={sending || !activeConversationId}

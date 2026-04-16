@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+
 interface AppShellProps {
   sidebar: React.ReactNode;
   children: React.ReactNode;
@@ -13,8 +15,40 @@ export function AppShell({
   onToggleSidebar,
   onCloseSidebar,
 }: AppShellProps) {
+  useEffect(() => {
+    if (!sidebarOpen) {
+      return;
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onCloseSidebar();
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [onCloseSidebar, sidebarOpen]);
+
+  useEffect(() => {
+    if (!sidebarOpen) {
+      return;
+    }
+
+    if (!window.matchMedia("(max-width: 960px)").matches) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [sidebarOpen]);
+
   return (
-    <div className="shell">
+    <div className={`shell ${sidebarOpen ? "shell--sidebar-open" : ""}`}>
       <button
         className="mobile-sidebar-toggle"
         type="button"
@@ -33,7 +67,13 @@ export function AppShell({
         {sidebar}
       </aside>
 
-      {sidebarOpen ? <button className="sidebar-backdrop" onClick={onCloseSidebar} aria-label="Close sidebar" /> : null}
+      <button
+        className={`sidebar-backdrop ${sidebarOpen ? "is-open" : ""}`}
+        onClick={onCloseSidebar}
+        aria-label="Close sidebar"
+        aria-hidden={!sidebarOpen}
+        tabIndex={sidebarOpen ? 0 : -1}
+      />
 
       <main className="shell-main">{children}</main>
     </div>

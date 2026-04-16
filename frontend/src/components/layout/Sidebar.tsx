@@ -63,7 +63,11 @@ export function Sidebar({
           </button>
         </div>
 
-        <button type="button" className="button button--primary button--compact sidebar-new-chat" onClick={onCreateConversation}>
+        <button
+          type="button"
+          className="button button--primary button--compact sidebar-new-chat sidebar-touch-target"
+          onClick={onCreateConversation}
+        >
           <span className="new-chat-icon" aria-hidden="true">
             +
           </span>
@@ -85,6 +89,7 @@ export function Sidebar({
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
             placeholder="Search chats"
+            autoComplete="off"
           />
         </label>
 
@@ -103,7 +108,7 @@ export function Sidebar({
               <li key={conversation.id} className={`conversation-item ${isActive ? "is-active" : ""}`}>
                 <button
                   type="button"
-                  className="conversation-open"
+                  className="conversation-open sidebar-touch-target"
                   onClick={() => onSelectConversation(conversation.id)}
                   title={title}
                 >
@@ -115,12 +120,12 @@ export function Sidebar({
                     className="conversation-manage__summary"
                     aria-label={`Conversation actions for ${title}`}
                   >
-                    ...
+                    <span aria-hidden="true">...</span>
                   </summary>
                   <div className="conversation-menu">
                     <button
                       type="button"
-                      className="icon-btn"
+                      className="icon-btn sidebar-touch-target"
                       onClick={() => onRenameConversation(conversation.id, title)}
                       aria-label={`Rename ${title}`}
                     >
@@ -128,7 +133,7 @@ export function Sidebar({
                     </button>
                     <button
                       type="button"
-                      className="icon-btn danger"
+                      className="icon-btn danger sidebar-touch-target"
                       onClick={() => onDeleteConversation(conversation.id)}
                       aria-label={`Delete ${title}`}
                     >
@@ -150,11 +155,15 @@ export function Sidebar({
 
         <div className="sidebar-actions">
           {onOpenSettings ? (
-            <button type="button" className="button button--ghost button--compact" onClick={onOpenSettings}>
+            <button
+              type="button"
+              className="button button--ghost button--compact sidebar-touch-target"
+              onClick={onOpenSettings}
+            >
               Settings
             </button>
           ) : null}
-          <button type="button" className="button button--ghost button--compact" onClick={onLogout}>
+          <button type="button" className="button button--ghost button--compact sidebar-touch-target" onClick={onLogout}>
             Logout
           </button>
         </div>
