@@ -1,26 +1,14 @@
-"""Structured output schema for generated drafting documents.
+"""Strict drafting schemas for extraction-first document generation.
 
-The LLM is expected to return JSON that matches these models so the rest of
-SAARTHI can render, validate, and export documents without relying on free-form
-text.
-
-Example payload::
-
-    {
-        "title": "KYC Update 2025",
-        "document_type": "circular",
-        "sections": [
-            {"heading": "Subject", "content": "Updated KYC requirements..."}
-        ],
-        "references": ["RBI Master Direction on KYC"]
-    }
+The LLM is restricted to returning structured data fields only. Final visual
+layout is assembled programmatically via python-docx.
 """
 
 from __future__ import annotations
 
-from typing import ClassVar
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator
 
 DOCUMENT_TYPES: tuple[str, ...] = ("circular", "press_release", "advisory")
 
@@ -44,68 +32,210 @@ def canonicalize_document_type(document_type: str) -> str:
     return cleaned
 
 
-class DocumentSection(BaseModel):
-    """Single section within a generated drafting document."""
+def _normalize_required_text(value: object, field_name: str) -> str:
+    cleaned = " ".join(str(value or "").split())
+    if not cleaned:
+        raise ValueError(f"{field_name} cannot be empty.")
+    return cleaned
+
+
+def _normalize_required_list(value: object, field_name: str) -> list[str]:
+    if not isinstance(value, list):
+        raise ValueError(f"{field_name} must be provided as a list of strings.")
+
+    cleaned_items: list[str] = []
+    seen: set[str] = set()
+    for item in value:
+        cleaned = " ".join(str(item or "").split())
+        if not cleaned or cleaned in seen:
+            continue
+        cleaned_items.append(cleaned)
+        seen.add(cleaned)
+
+    if not cleaned_items:
+        raise ValueError(f"{field_name} must contain at least one non-empty item.")
+    return cleaned_items
+
+
+class CircularDraft(BaseModel):
+    """Strict extraction schema for circular documents."""
 
     model_config = ConfigDict(extra="forbid")
 
-    heading: str = Field(min_length=1, max_length=200)
-    content: str = Field(min_length=1, max_length=20000)
+    document_type: Literal["circular"] = "circular"
+    reference_number: str = Field(min_length=1, max_length=120)
+    date: str = Field(min_length=1, max_length=80)
+    addressee: str = Field(min_length=1, max_length=200)
+    subject: str = Field(min_length=1, max_length=300)
+    highlights: list[str] = Field(default_factory=list)
+    background_context: str = Field(min_length=1, max_length=5000)
+    operational_directives: list[str] = Field(default_factory=list)
+    compliance_warning: str = Field(min_length=1, max_length=1200)
+    issuing_authority: str = Field(min_length=1, max_length=200)
 
-    @field_validator("heading", "content", mode="before")
+    @field_validator(
+        "reference_number",
+        "date",
+        "addressee",
+        "subject",
+        "background_context",
+        "compliance_warning",
+        "issuing_authority",
+        mode="before",
+    )
     @classmethod
-    def normalize_text(cls, value: object) -> str:
-        cleaned = " ".join(str(value or "").split())
-        if not cleaned:
-            raise ValueError("Section fields cannot be empty.")
-        return cleaned
+    def normalize_text_fields(cls, value: object, info) -> str:
+        return _normalize_required_text(value, info.field_name.replace("_", " ").title())
+
+    @field_validator("highlights", "operational_directives", mode="before")
+    @classmethod
+    def normalize_list_fields(cls, value: object, info) -> list[str]:
+        return _normalize_required_list(value, info.field_name.replace("_", " ").title())
 
 
-class DocumentDraft(BaseModel):
-    """Structured JSON output returned by the drafting LLM."""
+class AdvisoryDraft(BaseModel):
+    """Strict extraction schema for advisory documents."""
 
     model_config = ConfigDict(extra="forbid")
 
-    title: str = Field(min_length=1, max_length=300)
-    document_type: str = Field(min_length=1, max_length=50)
-    sections: list[DocumentSection] = Field(default_factory=list)
-    references: list[str] = Field(default_factory=list)
+    document_type: Literal["advisory"] = "advisory"
+    priority_level: str = Field(min_length=1, max_length=40)
+    date: str = Field(min_length=1, max_length=80)
+    target_audience: str = Field(min_length=1, max_length=200)
+    subject: str = Field(min_length=1, max_length=300)
+    issue_description: str = Field(min_length=1, max_length=5000)
+    mitigating_actions: list[str] = Field(default_factory=list)
+    reporting_mechanism: str = Field(min_length=1, max_length=2000)
+    issuing_authority: str = Field(min_length=1, max_length=200)
 
-    _canonical_document_type: ClassVar[set[str]] = set(DOCUMENT_TYPES)
-
-    @field_validator("title", mode="before")
+    @field_validator(
+        "priority_level",
+        "date",
+        "target_audience",
+        "subject",
+        "issue_description",
+        "reporting_mechanism",
+        "issuing_authority",
+        mode="before",
+    )
     @classmethod
-    def normalize_title(cls, value: object) -> str:
-        cleaned = " ".join(str(value or "").split())
-        if not cleaned:
-            raise ValueError("Title cannot be empty.")
-        return cleaned
+    def normalize_text_fields(cls, value: object, info) -> str:
+        return _normalize_required_text(value, info.field_name.replace("_", " ").title())
 
-    @field_validator("document_type", mode="before")
+    @field_validator("mitigating_actions", mode="before")
     @classmethod
-    def normalize_document_type(cls, value: object) -> str:
-        return canonicalize_document_type(str(value or ""))
+    def normalize_list_fields(cls, value: object, info) -> list[str]:
+        return _normalize_required_list(value, info.field_name.replace("_", " ").title())
 
-    @field_validator("references", mode="before")
+
+class PressReleaseDraft(BaseModel):
+    """Strict extraction schema for press release documents."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    document_type: Literal["press_release"] = "press_release"
+    date: str = Field(min_length=1, max_length=80)
+    dateline: str = Field(min_length=1, max_length=120)
+    headline: str = Field(min_length=1, max_length=300)
+    lead_paragraph: str = Field(min_length=1, max_length=3000)
+    body_paragraphs: list[str] = Field(default_factory=list)
+    boilerplate_about: str = Field(min_length=1, max_length=3000)
+    media_contact: str = Field(min_length=1, max_length=1000)
+
+    @field_validator(
+        "date",
+        "dateline",
+        "headline",
+        "lead_paragraph",
+        "boilerplate_about",
+        "media_contact",
+        mode="before",
+    )
     @classmethod
-    def normalize_references(cls, value: object) -> list[str]:
-        if value is None:
-            return []
-        if not isinstance(value, list):
-            raise ValueError("References must be provided as a list of strings.")
+    def normalize_text_fields(cls, value: object, info) -> str:
+        return _normalize_required_text(value, info.field_name.replace("_", " ").title())
 
-        cleaned_references: list[str] = []
-        seen: set[str] = set()
-        for item in value:
-            cleaned = " ".join(str(item or "").split())
-            if not cleaned or cleaned in seen:
-                continue
-            cleaned_references.append(cleaned)
-            seen.add(cleaned)
-        return cleaned_references
+    @field_validator("body_paragraphs", mode="before")
+    @classmethod
+    def normalize_list_fields(cls, value: object, info) -> list[str]:
+        return _normalize_required_list(value, info.field_name.replace("_", " ").title())
 
-    @model_validator(mode="after")
-    def ensure_sections_present(self) -> "DocumentDraft":
-        if not self.sections:
-            raise ValueError("At least one section is required in the generated document.")
-        return self
+
+DraftDocument = Annotated[
+    CircularDraft | AdvisoryDraft | PressReleaseDraft,
+    Field(discriminator="document_type"),
+]
+
+_DRAFT_DOCUMENT_ADAPTER = TypeAdapter(DraftDocument)
+
+
+def draft_model_for_type(document_type: str) -> type[CircularDraft] | type[AdvisoryDraft] | type[PressReleaseDraft]:
+    normalized = canonicalize_document_type(document_type)
+    if normalized == "circular":
+        return CircularDraft
+    if normalized == "advisory":
+        return AdvisoryDraft
+    return PressReleaseDraft
+
+
+def validate_draft_payload(payload: dict[str, Any], *, document_type: str | None = None) -> DraftDocument:
+    if not isinstance(payload, dict):
+        raise ValueError("Draft payload must be a JSON object.")
+
+    candidate = dict(payload)
+    if document_type is not None:
+        candidate["document_type"] = canonicalize_document_type(document_type)
+    elif "document_type" in candidate:
+        candidate["document_type"] = canonicalize_document_type(str(candidate["document_type"]))
+    else:
+        raise ValueError("Draft payload must include a document_type.")
+
+    model = draft_model_for_type(str(candidate["document_type"]))
+    return model.model_validate(candidate)
+
+
+def payload_schema_for_document_type(document_type: str) -> dict[str, Any]:
+    normalized = canonicalize_document_type(document_type)
+    if normalized == "circular":
+        return {
+            "document_type": "circular",
+            "reference_number": "string",
+            "date": "string",
+            "addressee": "string",
+            "subject": "string",
+            "highlights": ["string"],
+            "background_context": "string",
+            "operational_directives": ["string"],
+            "compliance_warning": "string",
+            "issuing_authority": "string",
+        }
+    if normalized == "advisory":
+        return {
+            "document_type": "advisory",
+            "priority_level": "string",
+            "date": "string",
+            "target_audience": "string",
+            "subject": "string",
+            "issue_description": "string",
+            "mitigating_actions": ["string"],
+            "reporting_mechanism": "string",
+            "issuing_authority": "string",
+        }
+    return {
+        "document_type": "press_release",
+        "date": "string",
+        "dateline": "string",
+        "headline": "string",
+        "lead_paragraph": "string",
+        "body_paragraphs": ["string"],
+        "boilerplate_about": "string",
+        "media_contact": "string",
+    }
+
+
+def draft_title(draft: DraftDocument) -> str:
+    if isinstance(draft, CircularDraft):
+        return draft.subject
+    if isinstance(draft, AdvisoryDraft):
+        return draft.subject
+    return draft.headline

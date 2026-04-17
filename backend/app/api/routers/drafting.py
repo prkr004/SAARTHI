@@ -12,6 +12,7 @@ from fastapi.responses import StreamingResponse
 from backend.app.api.deps import get_current_user
 from backend.app.drafting.docx_export import create_docx
 from backend.app.drafting.generator import generate_document
+from backend.app.drafting.schema import draft_title
 from backend.app.schemas.drafting import GenerateDocumentRequest
 
 logger = logging.getLogger(__name__)
@@ -54,7 +55,7 @@ def generate_document_endpoint(
             detail="Unexpected error while generating the document.",
         ) from exc
 
-    filename = _slugify_filename(f"{drafted_document.document_type}_{drafted_document.title}")
+    filename = _slugify_filename(f"{drafted_document.document_type}_{draft_title(drafted_document)}")
     buffer = BytesIO(docx_bytes)
     buffer.seek(0)
 

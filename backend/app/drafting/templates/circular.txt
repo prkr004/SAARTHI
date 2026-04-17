@@ -1,18 +1,33 @@
-SAARTHI Internal Circular Template
+REGULATORY CIRCULAR TEMPLATE (RBI / PSB STYLE)
 
-Title: {title}
+Issuing Department: {issuing_department}
+Circular / Reference Number: {reference_number}
 Date: {date}
-Audience: {audience}
-Reference: {references}
+Addressee (e.g., TO ALL BRANCHES / ZONAL OFFICES): {addressee}
 
-Subject:
-{summary}
+Subject: {subject}
 
-Highlights:
-{changes}
+Highlights (Executive Summary):
+- {highlight_1}
+- {highlight_2}
+- {highlight_3}
 
-Instructions:
-{actions}
+Background / Reference:
+Please refer to our earlier master direction(s), circular(s), and operational instructions on the subject.
+{background_reference}
 
-Compliance Note:
-{compliance_note}
+Operational Guidelines:
+1. {guideline_1}
+2. {guideline_2}
+3. {guideline_3}
+4. {guideline_4}
+
+Compliance / Action Required:
+- Effective Date: {effective_date}
+- Compliance Deadline: {compliance_deadline}
+- Branches are advised to ensure strict compliance and maintain documentary evidence for supervisory review.
+- Any deviation shall be escalated immediately through prescribed governance channels.
+
+Sign-off:
+{issuing_authority}
+Chief General Manager

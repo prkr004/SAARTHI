@@ -1,18 +1,28 @@
-SAARTHI Compliance Advisory Template
+REGULATORY ADVISORY TEMPLATE (URGENT RISK / COMPLIANCE ALERT)
 
-Title: {title}
+Priority Level (e.g., URGENT): {priority_level}
 Date: {date}
-Audience: {audience}
-Reference: {references}
+Target Audience: {addressee}
 
-Advisory Summary:
-{summary}
+Subject: {subject}
 
-Change Summary:
-{changes}
+Issue Description:
+{issue_description}
 
-Required Actions:
-{actions}
+Risk / Vulnerability Context:
+{risk_context}
 
-Compliance Note:
-{compliance_note}
+Mitigating Actions (Mandatory):
+1. {mitigating_action_1}
+2. {mitigating_action_2}
+3. {mitigating_action_3}
+4. {mitigating_action_4}
+
+Reporting Mechanism:
+1. Confirm implementation status through {reporting_channel} by {reporting_deadline}.
+2. Escalate unresolved gaps and exceptions to {escalation_authority} without delay.
+3. Preserve evidence of controls, testing, and remediation for audit and supervisory inspection.
+
+Sign-off:
+{issuing_authority}
+Chief Risk Officer / Compliance Head
