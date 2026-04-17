@@ -1,0 +1,18 @@
+SAARTHI Internal Circular Template
+
+Title: {title}
+Date: {date}
+Audience: {audience}
+Reference: {references}
+
+Subject:
+{summary}
+
+Highlights:
+{changes}
+
+Instructions:
+{actions}
+
+Compliance Note:
+{compliance_note}

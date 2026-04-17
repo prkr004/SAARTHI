@@ -124,3 +124,9 @@ export interface FrontendMessage extends MessageItem {
   temporal?: TemporalPayload;
   pending?: boolean;
 }
+
+export interface GenerateDocumentRequest {
+  document_type: "circular" | "press_release" | "advisory";
+  query: string;
+  audience: string;
+}

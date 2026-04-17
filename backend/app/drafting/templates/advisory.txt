@@ -1,0 +1,18 @@
+SAARTHI Compliance Advisory Template
+
+Title: {title}
+Date: {date}
+Audience: {audience}
+Reference: {references}
+
+Advisory Summary:
+{summary}
+
+Change Summary:
+{changes}
+
+Required Actions:
+{actions}
+
+Compliance Note:
+{compliance_note}

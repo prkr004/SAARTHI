@@ -7,6 +7,7 @@ import type {
   AskTemporalRequest,
   AuthTokenResponse,
   ConversationSummary,
+  GenerateDocumentRequest,
   MessageItem,
   ModelsResponseData,
   UserProfile,
@@ -94,5 +95,14 @@ export const api = {
       timeoutMs: 120000,
     });
     return unwrapEnvelope(response);
+  },
+
+  async generateDocument(payload: GenerateDocumentRequest): Promise<Response> {
+    return apiClient.requestBlob("/generate-document", {
+      method: "POST",
+      body: payload,
+      retries: 0,
+      timeoutMs: 120000,
+    });
   },
 };

@@ -13,6 +13,7 @@ interface SidebarProps {
   onCreateConversation: () => void;
   onRenameConversation: (conversationId: number, currentTitle: string) => void;
   onDeleteConversation: (conversationId: number) => void;
+  onOpenDrafting?: () => void;
   onOpenSettings?: () => void;
   onLogout: () => void;
 }
@@ -27,6 +28,7 @@ export function Sidebar({
   onCreateConversation,
   onRenameConversation,
   onDeleteConversation,
+  onOpenDrafting,
   onOpenSettings,
   onLogout,
 }: SidebarProps) {
@@ -166,6 +168,15 @@ export function Sidebar({
         </div>
 
         <div className="sidebar-actions">
+          {onOpenDrafting ? (
+            <button
+              type="button"
+              className="button button--ghost button--compact sidebar-touch-target"
+              onClick={onOpenDrafting}
+            >
+              Draft document
+            </button>
+          ) : null}
           {onOpenSettings ? (
             <button
               type="button"

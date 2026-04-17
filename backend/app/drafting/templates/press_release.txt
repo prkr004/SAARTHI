@@ -1,0 +1,18 @@
+SAARTHI Press Release Template
+
+Title: {title}
+Date: {date}
+Audience: {audience}
+Reference: {references}
+
+Release Summary:
+{summary}
+
+Key Points:
+{changes}
+
+Public Statement:
+{actions}
+
+Reference Note:
+{compliance_note}

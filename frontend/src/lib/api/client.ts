@@ -10,6 +10,14 @@ interface RequestOptions {
   timeoutMs?: number;
 }
 
+interface BinaryRequestOptions {
+  method?: HttpMethod;
+  body?: unknown;
+  requiresAuth?: boolean;
+  retries?: number;
+  timeoutMs?: number;
+}
+
 interface ErrorShape {
   detail?: string;
   code?: string;
@@ -126,6 +134,81 @@ export class ApiClient {
     throw new ApiClientError("Unable to reach the API service.", 503, "network_error");
   }
 
+  async requestBlob(path: string, options: BinaryRequestOptions = {}): Promise<Response> {
+    const {
+      method = "GET",
+      body,
+      requiresAuth = true,
+      retries = 1,
+      timeoutMs = 30000,
+    } = options;
+
+    let lastError: unknown;
+
+    for (let attempt = 0; attempt <= retries; attempt += 1) {
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+
+      try {
+        const headers: Record<string, string> = {};
+
+        if (body !== undefined) {
+          headers["Content-Type"] = "application/json";
+        }
+
+        if (requiresAuth) {
+          const token = storage.getToken();
+          if (token) {
+            headers.Authorization = `Bearer ${token}`;
+          }
+        }
+
+        const response = await fetch(`${this.baseUrl}${path}`, {
+          method,
+          headers,
+          body: body === undefined ? undefined : JSON.stringify(body),
+          signal: controller.signal,
+        });
+
+        window.clearTimeout(timeout);
+
+        if (!response.ok) {
+          if (shouldRetry(response.status) && attempt < retries) {
+            await sleep(250 * (attempt + 1));
+            continue;
+          }
+
+          const contentType = response.headers.get("content-type") ?? "";
+          const responseBody = contentType.includes("application/json") ? await response.json() : null;
+          throw this.buildError(response.status, responseBody);
+        }
+
+        return response;
+      } catch (error) {
+        window.clearTimeout(timeout);
+        lastError = error;
+
+        const isAbortError = error instanceof DOMException && error.name === "AbortError";
+        const isTransientNetworkError = error instanceof TypeError || isAbortError;
+
+        if (isTransientNetworkError && attempt < retries) {
+          await sleep(250 * (attempt + 1));
+          continue;
+        }
+      }
+    }
+
+    if (lastError instanceof ApiClientError) {
+      throw lastError;
+    }
+
+    if (lastError instanceof DOMException && lastError.name === "AbortError") {
+      throw new ApiClientError("Request timed out.", 504, "request_timeout");
+    }
+
+    throw new ApiClientError("Unable to reach the API service.", 503, "network_error");
+  }
+
   get<T>(path: string, options?: Omit<RequestOptions, "method" | "body">): Promise<T> {
     return this.request<T>(path, { ...options, method: "GET" });
   }
@@ -140,6 +223,10 @@ export class ApiClient {
 
   delete<T>(path: string, options?: Omit<RequestOptions, "method" | "body">): Promise<T> {
     return this.request<T>(path, { ...options, method: "DELETE" });
+  }
+
+  requestBlobBody(path: string, options?: Omit<BinaryRequestOptions, "method" | "body"> & { body?: unknown }): Promise<Response> {
+    return this.requestBlob(path, { ...options, method: "POST" });
   }
 
   private buildError(status: number, responseBody: unknown): ApiClientError {

@@ -1513,6 +1513,131 @@ input::placeholder {
   gap: 0.5rem;
 }
 
+.drafting-stage {
+  min-height: 100dvh;
+  padding: clamp(0.9rem, 2.4vw, 1.55rem);
+  display: grid;
+  gap: 0.9rem;
+}
+
+.drafting-header {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 0.95rem 1rem;
+  background: color-mix(in srgb, var(--card) 90%, transparent);
+  box-shadow: var(--elev-1);
+  display: flex;
+  justify-content: space-between;
+  gap: 0.7rem;
+  align-items: flex-start;
+}
+
+.drafting-header h1 {
+  margin: 0;
+  font-size: clamp(1.3rem, 2.2vw, 1.75rem);
+}
+
+.drafting-header p {
+  margin: 0.35rem 0 0;
+  color: var(--ink-soft);
+}
+
+.drafting-eyebrow {
+  margin: 0;
+  color: var(--primary-strong);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.drafting-header__actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.drafting-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+}
+
+.drafting-card {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--card) 92%, transparent);
+  padding: 0.9rem;
+  display: grid;
+  gap: 0.72rem;
+}
+
+.drafting-card h2 {
+  margin: 0;
+  font-size: 1.02rem;
+}
+
+.drafting-card p {
+  margin: 0;
+  color: var(--ink-soft);
+}
+
+.drafting-card__hint {
+  font-size: 0.88rem;
+  color: var(--primary-strong);
+}
+
+.drafting-card textarea {
+  min-height: 8.5rem;
+  resize: vertical;
+}
+
+.drafting-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.drafting-preview {
+  display: grid;
+  gap: 0.6rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.drafting-preview > div {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.7rem;
+  background: color-mix(in srgb, var(--card-strong) 88%, transparent);
+}
+
+.drafting-preview span {
+  display: block;
+  font-size: 0.76rem;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.25rem;
+}
+
+.drafting-preview strong {
+  display: block;
+  font-size: 0.96rem;
+  line-height: 1.4;
+}
+
+.drafting-checklist {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--ink-soft);
+  display: grid;
+  gap: 0.35rem;
+}
+
+.drafting-checklist li::marker {
+  color: var(--primary-strong);
+}
+
 .pill {
   border-radius: 999px;
   border: 1px solid var(--line);
@@ -1565,6 +1690,10 @@ input::placeholder {
 
   .shell-main > *:nth-child(4) {
     animation-delay: 135ms;
+  }
+
+  .drafting-grid {
+    animation: fade-rise 420ms ease both;
   }
 
   @keyframes fade-rise {
@@ -1635,6 +1764,20 @@ input::placeholder {
     overflow: visible;
     padding-top: calc(3.7rem + env(safe-area-inset-top));
     padding-inline: clamp(0.8rem, 4vw, 1.15rem);
+  }
+
+  .drafting-grid,
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .drafting-header,
+  .settings-header {
+    flex-direction: column;
+  }
+
+  .drafting-preview {
+    grid-template-columns: 1fr;
   }
 
   .sidebar-touch-target {

@@ -252,6 +252,10 @@ export function ChatPage() {
     }
   }
 
+  function handleOpenDrafting() {
+    navigate("/drafting");
+  }
+
   async function handleSubmitQuestion() {
     if (!activeConversationId || sending) {
       return;
@@ -358,6 +362,7 @@ export function ChatPage() {
           onCreateConversation={handleCreateConversation}
           onRenameConversation={handleRenameConversation}
           onDeleteConversation={handleDeleteConversation}
+          onOpenDrafting={handleOpenDrafting}
           onOpenSettings={() => {
             setSidebarOpen(false);
             navigate("/settings");

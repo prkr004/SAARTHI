@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 
 import { useAuth } from "../hooks/useAuth";
 import { ChatPage } from "../pages/ChatPage.tsx";
+import { DocumentGeneratorPage } from "../pages/DocumentGeneratorPage.tsx";
 import { LoginPage } from "../pages/LoginPage.tsx";
 import { NotFoundPage } from "../pages/NotFoundPage.tsx";
 import { RegisterPage } from "../pages/RegisterPage.tsx";
@@ -31,6 +32,7 @@ export function AppRouter() {
     <Routes>
       <Route element={<ProtectedRoute />}>
         <Route path="/" element={<ChatPage />} />
+        <Route path="/drafting" element={<DocumentGeneratorPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
       <Route
