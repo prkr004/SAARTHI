@@ -14,13 +14,13 @@ const FEATURE_CARDS: FeatureCard[] = [
     title: "RAG Chatbot",
     description: "Open the same source-grounded chatbot module used by employee users.",
     cta: "Open Chat",
-    path: "/",
+    path: "/admin/chat",
   },
   {
     title: "Document Generator",
     description: "Navigate to the existing drafting module for policy and advisory generation.",
     cta: "Open Generator",
-    path: "/drafting",
+    path: "/admin/drafting",
   },
   {
     title: "Authenticate Users",
@@ -52,8 +52,8 @@ export function AdminDashboardPage() {
           </p>
         </div>
         <div className="admin-header__actions">
-          <button type="button" className="button button--ghost" onClick={() => navigate("/settings")}>
-            Workspace settings
+          <button type="button" className="button button--ghost" onClick={() => navigate("/admin/chat")}>
+            Open admin chat
           </button>
           <button
             type="button"

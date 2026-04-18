@@ -79,7 +79,7 @@ export class ApiClient {
         };
 
         if (requiresAuth) {
-          const token = storage.getToken();
+          const token = storage.getTokenForCurrentPath();
           if (token) {
             headers.Authorization = `Bearer ${token}`;
           }
@@ -157,7 +157,7 @@ export class ApiClient {
         }
 
         if (requiresAuth) {
-          const token = storage.getToken();
+          const token = storage.getTokenForCurrentPath();
           if (token) {
             headers.Authorization = `Bearer ${token}`;
           }
@@ -227,7 +227,7 @@ export class ApiClient {
         const headers: Record<string, string> = {};
 
         if (requiresAuth) {
-          const token = storage.getToken();
+          const token = storage.getTokenForCurrentPath();
           if (token) {
             headers.Authorization = `Bearer ${token}`;
           }

@@ -6,6 +6,7 @@ import logging
 import smtplib
 from dataclasses import dataclass
 from email.message import EmailMessage
+import ssl
 
 from backend.app.core.config import get_settings
 
@@ -81,14 +82,33 @@ class NotificationService:
             )
             return NotificationResult(sent=True)
 
+        if provider == "gmail":
+            return self._send_via_gmail(recipient_email=recipient_email, subject=subject, body=body)
+
         if provider != "smtp":
             return NotificationResult(sent=False, warning=f"Unsupported notification provider: {provider}")
 
+        return self._send_via_smtp(recipient_email=recipient_email, subject=subject, body=body)
+
+    def _build_message(self, *, recipient_email: str, subject: str, body: str, sender: str) -> EmailMessage:
         message = EmailMessage()
         message["Subject"] = subject
-        message["From"] = self._settings.notification_from_email
+        message["From"] = sender
         message["To"] = recipient_email
         message.set_content(body)
+        return message
+
+    def _send_via_smtp(self, *, recipient_email: str, subject: str, body: str) -> NotificationResult:
+        sender = (self._settings.notification_from_email or "").strip()
+        if not sender:
+            return NotificationResult(sent=False, warning="Notification sender email is not configured.")
+
+        message = self._build_message(
+            recipient_email=recipient_email,
+            subject=subject,
+            body=body,
+            sender=sender,
+        )
 
         try:
             if self._settings.notification_smtp_use_ssl:
@@ -106,12 +126,54 @@ class NotificationService:
                     timeout=self._settings.notification_smtp_timeout_seconds,
                 ) as smtp:
                     if self._settings.notification_smtp_use_starttls:
-                        smtp.starttls()
+                        smtp.starttls(context=ssl.create_default_context())
                     self._smtp_authenticate(smtp)
                     smtp.send_message(message)
+            logger.info(
+                "Notification sent",
+                extra={"provider": "smtp", "recipient_email": recipient_email, "subject": subject},
+            )
             return NotificationResult(sent=True)
         except Exception as exc:  # pragma: no cover - depends on external provider
-            logger.exception("Notification send failed", extra={"recipient_email": recipient_email})
+            logger.exception("Notification send failed", extra={"recipient_email": recipient_email, "provider": "smtp"})
+            return NotificationResult(sent=False, warning=f"Notification delivery failed: {exc}")
+
+    def _send_via_gmail(self, *, recipient_email: str, subject: str, body: str) -> NotificationResult:
+        gmail_user = (self._settings.notification_gmail_user or "").strip()
+        gmail_password = (self._settings.notification_gmail_app_password or "").strip()
+
+        if not gmail_user or not gmail_password:
+            return NotificationResult(
+                sent=False,
+                warning="Gmail notifications are enabled but credentials are missing.",
+            )
+
+        sender = (self._settings.notification_from_email or "").strip() or gmail_user
+        message = self._build_message(
+            recipient_email=recipient_email,
+            subject=subject,
+            body=body,
+            sender=sender,
+        )
+
+        try:
+            with smtplib.SMTP_SSL(
+                "smtp.gmail.com",
+                465,
+                timeout=self._settings.notification_smtp_timeout_seconds,
+            ) as smtp:
+                smtp.login(gmail_user, gmail_password)
+                smtp.send_message(message)
+            logger.info(
+                "Notification sent",
+                extra={"provider": "gmail", "recipient_email": recipient_email, "subject": subject},
+            )
+            return NotificationResult(sent=True)
+        except Exception as exc:  # pragma: no cover - depends on external provider
+            logger.exception(
+                "Notification send failed",
+                extra={"recipient_email": recipient_email, "provider": "gmail"},
+            )
             return NotificationResult(sent=False, warning=f"Notification delivery failed: {exc}")
 
     def _smtp_authenticate(self, smtp: smtplib.SMTP) -> None:

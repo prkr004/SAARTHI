@@ -66,6 +66,8 @@ export function AppRouter() {
         <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
         <Route path="/admin/users" element={<AdminUserApprovalPage />} />
         <Route path="/admin/uploads" element={<AdminUploadDocumentsPage />} />
+        <Route path="/admin/chat" element={<ChatPage />} />
+        <Route path="/admin/drafting" element={<DocumentGeneratorPage />} />
       </Route>
       <Route
         path="/login"

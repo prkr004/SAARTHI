@@ -110,6 +110,54 @@ def test_admin_can_approve_and_reject_user_requests(client: TestClient):
     assert blocked_login.status_code == 403
 
 
+def test_admin_can_list_active_and_revoke_or_grant_access(client: TestClient):
+    admin_headers = _admin_headers(client)
+
+    client.post(
+        "/api/v1/auth/register",
+        json={
+            "employee_id": "EMP6003",
+            "full_name": "Active Employee",
+            "password": "SecurePass#123",
+            "email": "active.employee@example.com",
+        },
+    )
+    chat_store.set_user_approval_status("EMP6003", chat_store.APPROVAL_APPROVED)
+
+    active_response = client.get("/api/v1/admin/users/active", headers=admin_headers)
+    assert active_response.status_code == 200
+    active_rows = active_response.json()["users"]
+    target_row = next(item for item in active_rows if item["employee_id"] == "EMP6003")
+
+    revoke_response = client.post(
+        f"/api/v1/admin/users/{target_row['id']}/revoke",
+        json={"review_reason": "Access revoked for policy violation"},
+        headers=admin_headers,
+    )
+    assert revoke_response.status_code == 200
+    assert revoke_response.json()["user"]["approval_status"] == "rejected"
+
+    blocked_login = client.post(
+        "/api/v1/auth/login",
+        json={"employee_id": "EMP6003", "password": "SecurePass#123"},
+    )
+    assert blocked_login.status_code == 403
+
+    grant_response = client.post(
+        "/api/v1/admin/users/grant-access",
+        json={"employee_id": "EMP6003", "review_reason": "Reinstated by admin"},
+        headers=admin_headers,
+    )
+    assert grant_response.status_code == 200
+    assert grant_response.json()["user"]["approval_status"] == "approved"
+
+    restored_login = client.post(
+        "/api/v1/auth/login",
+        json={"employee_id": "EMP6003", "password": "SecurePass#123"},
+    )
+    assert restored_login.status_code == 200
+
+
 def test_admin_endpoints_reject_non_admin_users(client: TestClient):
     user_headers = _approved_user_headers(client, "EMP6101")
 
@@ -118,6 +166,95 @@ def test_admin_endpoints_reject_non_admin_users(client: TestClient):
 
     jobs_response = client.get("/api/v1/admin/ingestion/jobs", headers=user_headers)
     assert jobs_response.status_code == 403
+
+
+def test_review_endpoints_surface_notification_warnings(client: TestClient, monkeypatch):
+    admin_headers = _admin_headers(client)
+
+    class _StubNotificationService:
+        def send_approval_email(self, *, recipient_email: str | None, full_name: str):
+            return type("Result", (), {"warning": "SMTP unavailable"})()
+
+        def send_rejection_email(self, *, recipient_email: str | None, full_name: str, review_reason: str | None):
+            return type("Result", (), {"warning": "SMTP unavailable"})()
+
+    monkeypatch.setattr("backend.app.api.routers.admin.NotificationService", _StubNotificationService)
+
+    pending_user = {
+        "employee_id": "EMP6010",
+        "full_name": "Pending Warning",
+        "password": "SecurePass#123",
+        "email": "pending.warning@example.com",
+    }
+    register_response = client.post("/api/v1/auth/register", json=pending_user)
+    assert register_response.status_code == 201
+
+    pending_list = client.get("/api/v1/admin/users/pending", headers=admin_headers)
+    target_user = next(entry for entry in pending_list.json() if entry["employee_id"] == "EMP6010")
+
+    approve_response = client.post(
+        f"/api/v1/admin/users/{target_user['id']}/approve",
+        json={"review_reason": "OK"},
+        headers=admin_headers,
+    )
+    assert approve_response.status_code == 200
+    assert approve_response.json()["warning"] == "SMTP unavailable"
+
+
+def test_review_endpoints_trigger_notification_dispatch(client: TestClient, monkeypatch):
+    admin_headers = _admin_headers(client)
+
+    dispatch_log: list[tuple[str, str | None]] = []
+
+    class _RecordingNotificationService:
+        def send_approval_email(self, *, recipient_email: str | None, full_name: str):
+            dispatch_log.append(("approved", recipient_email))
+            return type("Result", (), {"warning": None})()
+
+        def send_rejection_email(self, *, recipient_email: str | None, full_name: str, review_reason: str | None):
+            dispatch_log.append(("rejected", recipient_email))
+            return type("Result", (), {"warning": None})()
+
+    monkeypatch.setattr("backend.app.api.routers.admin.NotificationService", _RecordingNotificationService)
+
+    first_user = {
+        "employee_id": "EMP6011",
+        "full_name": "Approve Candidate",
+        "password": "SecurePass#123",
+        "email": "approve.candidate@example.com",
+    }
+    second_user = {
+        "employee_id": "EMP6012",
+        "full_name": "Reject Candidate",
+        "password": "SecurePass#123",
+        "email": "reject.candidate@example.com",
+    }
+
+    assert client.post("/api/v1/auth/register", json=first_user).status_code == 201
+    assert client.post("/api/v1/auth/register", json=second_user).status_code == 201
+
+    pending = client.get("/api/v1/admin/users/pending", headers=admin_headers)
+    assert pending.status_code == 200
+    rows = pending.json()
+
+    approve_target = next(entry for entry in rows if entry["employee_id"] == "EMP6011")
+    reject_target = next(entry for entry in rows if entry["employee_id"] == "EMP6012")
+
+    approve_response = client.post(
+        f"/api/v1/admin/users/{approve_target['id']}/approve",
+        json={"review_reason": "Approved"},
+        headers=admin_headers,
+    )
+    reject_response = client.post(
+        f"/api/v1/admin/users/{reject_target['id']}/reject",
+        json={"review_reason": "Rejected"},
+        headers=admin_headers,
+    )
+
+    assert approve_response.status_code == 200
+    assert reject_response.status_code == 200
+    assert ("approved", "approve.candidate@example.com") in dispatch_log
+    assert ("rejected", "reject.candidate@example.com") in dispatch_log
 
 
 def test_ingestion_job_lifecycle_transitions(client: TestClient, monkeypatch, tmp_path: Path):

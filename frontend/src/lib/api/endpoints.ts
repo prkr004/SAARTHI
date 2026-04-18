@@ -1,5 +1,6 @@
 import { apiClient } from "./client";
 import type {
+  ActiveUsersResponse,
   AdminUserSummary,
   ApiEnvelope,
   ApiMessage,
@@ -35,7 +36,7 @@ function unwrapEnvelope<T>(envelope: ApiEnvelope<T>): T {
 }
 
 export const api = {
-  register(payload: { employee_id: string; full_name: string; password: string; email?: string }): Promise<ApiMessage> {
+  register(payload: { employee_id: string; full_name: string; password: string; email: string }): Promise<ApiMessage> {
     return apiClient.post<ApiMessage>("/auth/register", payload, { requiresAuth: false });
   },
 
@@ -115,14 +116,31 @@ export const api = {
     return apiClient.get<AdminUserSummary[]>("/admin/users/pending");
   },
 
+  listActiveUsers(): Promise<ActiveUsersResponse> {
+    return apiClient.get<ActiveUsersResponse>("/admin/users/active");
+  },
+
   approveUser(userId: number, reviewReason?: string): Promise<ReviewUserResponse> {
     return apiClient.post<ReviewUserResponse>(`/admin/users/${userId}/approve`, {
       review_reason: reviewReason,
     });
   },
 
+  grantUserAccess(employeeId: string, reviewReason?: string): Promise<ReviewUserResponse> {
+    return apiClient.post<ReviewUserResponse>("/admin/users/grant-access", {
+      employee_id: employeeId,
+      review_reason: reviewReason,
+    });
+  },
+
   rejectUser(userId: number, reviewReason?: string): Promise<ReviewUserResponse> {
     return apiClient.post<ReviewUserResponse>(`/admin/users/${userId}/reject`, {
+      review_reason: reviewReason,
+    });
+  },
+
+  revokeUserAccess(userId: number, reviewReason?: string): Promise<ReviewUserResponse> {
+    return apiClient.post<ReviewUserResponse>(`/admin/users/${userId}/revoke`, {
       review_reason: reviewReason,
     });
   },

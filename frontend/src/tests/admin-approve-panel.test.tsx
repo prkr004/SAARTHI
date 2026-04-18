@@ -7,6 +7,9 @@ import { AdminUserApprovalPage } from "../pages/AdminUserApprovalPage";
 
 const apiMock = vi.hoisted(() => ({
   listPendingUsers: vi.fn(),
+  listActiveUsers: vi.fn(),
+  grantUserAccess: vi.fn(),
+  revokeUserAccess: vi.fn(),
   approveUser: vi.fn(),
   rejectUser: vi.fn(),
 }));
@@ -30,6 +33,7 @@ describe("admin user approval panel", () => {
         created_at: "2026-04-19T00:00:00+00:00",
       },
     ]);
+    apiMock.listActiveUsers.mockResolvedValue({ users: [] });
 
     apiMock.approveUser.mockResolvedValue({
       message: "User approved successfully.",
@@ -54,6 +58,30 @@ describe("admin user approval panel", () => {
         created_at: "2026-04-19T00:00:00+00:00",
       },
     });
+
+    apiMock.grantUserAccess.mockResolvedValue({
+      message: "Employee access granted successfully.",
+      user: {
+        id: 101,
+        employee_id: "EMP9002",
+        full_name: "Pending User",
+        role: "user",
+        approval_status: "approved",
+        created_at: "2026-04-19T00:00:00+00:00",
+      },
+    });
+
+    apiMock.revokeUserAccess.mockResolvedValue({
+      message: "Employee access revoked successfully.",
+      user: {
+        id: 201,
+        employee_id: "EMP9010",
+        full_name: "Active User",
+        role: "user",
+        approval_status: "rejected",
+        created_at: "2026-04-19T00:00:00+00:00",
+      },
+    });
   });
 
   it("optimistically removes user and confirms approval", async () => {
@@ -72,8 +100,9 @@ describe("admin user approval panel", () => {
       expect(apiMock.approveUser).toHaveBeenCalledWith(101, "Approved by admin");
     });
 
-    expect(screen.queryByText("Pending User")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Approve Pending User" })).not.toBeInTheDocument();
     expect(await screen.findByText("User approved successfully.")).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Remove access for Pending User" })).toBeInTheDocument();
   });
 
   it("rolls back optimistic update when reject call fails", async () => {

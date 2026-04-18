@@ -6,6 +6,18 @@ import { AuthCard } from "../components/auth/AuthCard";
 import { useAuth } from "../hooks/useAuth";
 import { toUserErrorMessage } from "../lib/errors";
 
+const EMPLOYEE_ID_PATTERN = /^[A-Za-z0-9_-]{4,24}$/;
+
+function validateEmployeeId(value: string): string | null {
+  if (!value) {
+    return "Employee ID is required.";
+  }
+  if (!EMPLOYEE_ID_PATTERN.test(value)) {
+    return "Employee ID must be 4-24 characters and can only contain letters, numbers, underscores, or hyphens.";
+  }
+  return null;
+}
+
 export function LoginPage() {
   const navigate = useNavigate();
   const { login } = useAuth();
@@ -19,14 +31,22 @@ export function LoginPage() {
     event.preventDefault();
     setError(null);
 
-    if (!employeeId.trim() || !password.trim()) {
-      setError("Please enter Employee ID and password.");
+    const normalizedEmployeeId = employeeId.trim();
+
+    const employeeIdError = validateEmployeeId(normalizedEmployeeId);
+    if (employeeIdError) {
+      setError(employeeIdError);
+      return;
+    }
+
+    if (!password.trim()) {
+      setError("Password is required.");
       return;
     }
 
     setSubmitting(true);
     try {
-      const profile = await login(employeeId.trim(), password);
+      const profile = await login(normalizedEmployeeId, password);
       navigate(profile.role === "admin" ? "/admin/dashboard" : "/", { replace: true });
     } catch (submitError) {
       setError(toUserErrorMessage(submitError));

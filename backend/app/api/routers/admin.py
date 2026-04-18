@@ -8,7 +8,9 @@ import chat_store
 from backend.app.api.deps import get_admin_user
 from backend.app.core.config import get_settings
 from backend.app.schemas.admin import (
+    ActiveUsersResponse,
     AdminUserSummary,
+    GrantAccessRequest,
     IngestionJobCreateResponse,
     IngestionJobListResponse,
     IngestionJobSummary,
@@ -45,6 +47,14 @@ def list_pending_users(current_admin: dict = Depends(get_admin_user)) -> list[Ad
 
     users = chat_store.list_users_by_approval_status(chat_store.APPROVAL_PENDING)
     return [AdminUserSummary(**item) for item in users]
+
+
+@router.get("/users/active", response_model=ActiveUsersResponse)
+def list_active_users(current_admin: dict = Depends(get_admin_user)) -> ActiveUsersResponse:
+    _enforce_admin_rate_limit("admin_users_active", current_admin)
+
+    users = chat_store.list_active_users()
+    return ActiveUsersResponse(users=[AdminUserSummary(**item) for item in users])
 
 
 @router.get("/users/history", response_model=UserHistoryResponse)
@@ -92,6 +102,38 @@ def approve_user(
     )
 
 
+@router.post("/users/grant-access", response_model=ReviewUserResponse)
+def grant_user_access(
+    payload: GrantAccessRequest,
+    current_admin: dict = Depends(get_admin_user),
+) -> ReviewUserResponse:
+    _enforce_admin_rate_limit("admin_user_grant_access", current_admin)
+
+    try:
+        reviewed_user = chat_store.grant_user_access_by_employee_id(
+            employee_id=payload.employee_id,
+            reviewed_by=int(current_admin["user_id"]),
+            review_reason=payload.review_reason or "Access granted by admin.",
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+
+    notification_result = NotificationService().send_approval_email(
+        recipient_email=reviewed_user.get("email"),
+        full_name=str(reviewed_user.get("full_name") or "User"),
+    )
+
+    return ReviewUserResponse(
+        message="Employee access granted successfully.",
+        user=AdminUserSummary(**reviewed_user),
+        warning=notification_result.warning,
+    )
+
+
 @router.post("/users/{user_id}/reject", response_model=ReviewUserResponse)
 def reject_user(
     user_id: int,
@@ -122,6 +164,41 @@ def reject_user(
 
     return ReviewUserResponse(
         message="User rejected successfully.",
+        user=AdminUserSummary(**reviewed_user),
+        warning=notification_result.warning,
+    )
+
+
+@router.post("/users/{user_id}/revoke", response_model=ReviewUserResponse)
+def revoke_user_access(
+    user_id: int,
+    payload: ReviewUserRequest,
+    current_admin: dict = Depends(get_admin_user),
+) -> ReviewUserResponse:
+    _enforce_admin_rate_limit("admin_user_revoke", current_admin)
+
+    try:
+        reviewed_user = chat_store.review_user_account(
+            user_id=user_id,
+            approval_status=chat_store.APPROVAL_REJECTED,
+            reviewed_by=int(current_admin["user_id"]),
+            review_reason=payload.review_reason or "Access revoked by admin.",
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+
+    notification_result = NotificationService().send_rejection_email(
+        recipient_email=reviewed_user.get("email"),
+        full_name=str(reviewed_user.get("full_name") or "User"),
+        review_reason=payload.review_reason or "Access revoked by admin.",
+    )
+
+    return ReviewUserResponse(
+        message="Employee access revoked successfully.",
         user=AdminUserSummary(**reviewed_user),
         warning=notification_result.warning,
     )

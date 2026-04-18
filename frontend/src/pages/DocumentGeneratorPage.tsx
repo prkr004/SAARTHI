@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { AppShell } from "../components/layout/AppShell";
 import { Sidebar } from "../components/layout/Sidebar";
@@ -37,7 +37,13 @@ function parseFilename(contentDisposition: string | null, fallback: string): str
 
 export function DocumentGeneratorPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, logout } = useAuth();
+  const isAdminPortal = location.pathname.startsWith("/admin");
+  const chatRoute = isAdminPortal ? "/admin/chat" : "/";
+  const draftingRoute = isAdminPortal ? "/admin/drafting" : "/drafting";
+  const settingsRoute = isAdminPortal ? "/admin/dashboard" : "/settings";
+  const loginRoute = isAdminPortal ? "/admin/login" : "/login";
 
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [loadingWorkspace, setLoadingWorkspace] = useState(true);
@@ -161,14 +167,14 @@ export function DocumentGeneratorPage() {
           conversations={conversations}
           activeConversationId={null}
           loading={loadingWorkspace}
-          onSelectConversation={() => navigate("/")}
-          onCreateConversation={() => navigate("/")}
-          onRenameConversation={() => navigate("/")}
-          onDeleteConversation={() => navigate("/")}
-          onOpenDrafting={() => navigate("/drafting")}
-          onOpenSettings={() => navigate("/settings")}
+          onSelectConversation={() => navigate(chatRoute)}
+          onCreateConversation={() => navigate(chatRoute)}
+          onRenameConversation={() => navigate(chatRoute)}
+          onDeleteConversation={() => navigate(chatRoute)}
+          onOpenDrafting={() => navigate(draftingRoute)}
+          onOpenSettings={() => navigate(settingsRoute)}
           onLogout={() => {
-            void logout().then(() => navigate("/login", { replace: true }));
+            void logout().then(() => navigate(loginRoute, { replace: true }));
           }}
         />
       }
@@ -188,8 +194,8 @@ export function DocumentGeneratorPage() {
           </div>
 
           <div className="drafting-header__actions">
-            <button type="button" className="button button--ghost" onClick={() => navigate("/")}>Back to chat</button>
-            <button type="button" className="button" onClick={() => navigate("/settings")}>Workspace settings</button>
+            <button type="button" className="button button--ghost" onClick={() => navigate(chatRoute)}>Back to chat</button>
+            <button type="button" className="button" onClick={() => navigate(settingsRoute)}>{isAdminPortal ? "Back to admin" : "Workspace settings"}</button>
           </div>
         </header>
 

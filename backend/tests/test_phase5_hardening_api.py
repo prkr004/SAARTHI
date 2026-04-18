@@ -39,6 +39,7 @@ def _register_and_login(client: TestClient, employee_id: str, password: str = "S
             "employee_id": employee_id,
             "full_name": "Phase Five Tester",
             "password": password,
+            "email": f"{employee_id.lower()}@example.com",
         },
     )
     chat_store.set_user_approval_status(employee_id, chat_store.APPROVAL_APPROVED)
@@ -57,6 +58,7 @@ def test_auth_sanitizes_employee_id_and_full_name(client: TestClient):
             "employee_id": "  EMP5001  ",
             "full_name": "  Priya   Sharma  ",
             "password": "SecurePass#123",
+            "email": "  Priya.Sharma@example.com  ",
         },
     )
     assert response.status_code == 201

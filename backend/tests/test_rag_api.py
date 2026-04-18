@@ -27,6 +27,7 @@ def _auth_headers(client: TestClient, employee_id: str = "EMP4001") -> dict[str,
             "employee_id": employee_id,
             "full_name": "Rag Tester",
             "password": password,
+            "email": f"{employee_id.lower()}@example.com",
         },
     )
     chat_store.set_user_approval_status(employee_id, chat_store.APPROVAL_APPROVED)

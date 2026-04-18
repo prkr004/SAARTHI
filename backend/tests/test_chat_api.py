@@ -22,6 +22,7 @@ def _auth_headers(client: TestClient, employee_id: str, full_name: str) -> dict[
         "employee_id": employee_id,
         "full_name": full_name,
         "password": password,
+        "email": f"{employee_id.lower()}@example.com",
     }
     client.post("/api/v1/auth/register", json=register_payload)
     chat_store.set_user_approval_status(employee_id, chat_store.APPROVAL_APPROVED)

@@ -28,6 +28,7 @@ MAX_FAILED_ATTEMPTS = 5
 LOCKOUT_MINUTES = 15
 
 _EMPLOYEE_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{4,24}$")
+_EMAIL_PATTERN = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$")
 ADMIN_ID_ENV = "SAARTHI_ADMIN_EMPLOYEE_ID"
 ADMIN_NAME_ENV = "SAARTHI_ADMIN_NAME"
 ADMIN_PASSWORD_ENV = "SAARTHI_ADMIN_PASSWORD"
@@ -209,8 +210,17 @@ def _ensure_ingestion_jobs_schema(conn: sqlite3.Connection) -> None:
 def _normalize_optional_email(email: Optional[str]) -> Optional[str]:
     if email is None:
         return None
-    cleaned = email.strip()
+    cleaned = email.strip().lower()
     return cleaned or None
+
+
+def _validate_email(email: Optional[str], *, required: bool) -> Optional[str]:
+    normalized = _normalize_optional_email(email)
+    if required and not normalized:
+        return "Email address is required."
+    if normalized and not _EMAIL_PATTERN.match(normalized):
+        return "Please enter a valid email address."
+    return None
 
 
 def initialize_db() -> None:
@@ -324,7 +334,14 @@ def _verify_password(password: str, stored_hash: str) -> bool:
     return compare_digest(computed, expected)
 
 
-def _validate_registration(employee_id: str, full_name: str, password: str) -> Optional[str]:
+def _validate_registration(
+    employee_id: str,
+    full_name: str,
+    password: str,
+    email: Optional[str],
+    *,
+    require_email: bool,
+) -> Optional[str]:
     if not _EMPLOYEE_ID_PATTERN.match(employee_id):
         return "Employee ID must be 4-24 chars and only use letters, digits, '_' or '-'."
 
@@ -343,6 +360,10 @@ def _validate_registration(employee_id: str, full_name: str, password: str) -> O
     if not all(checks):
         return "Password must include upper, lower, number, and special character."
 
+    email_error = _validate_email(email, required=require_email)
+    if email_error:
+        return email_error
+
     return None
 
 
@@ -356,7 +377,13 @@ def register_user(
     full_name = full_name.strip()
     normalized_email = _normalize_optional_email(email)
 
-    validation_error = _validate_registration(employee_id, full_name, password)
+    validation_error = _validate_registration(
+        employee_id,
+        full_name,
+        password,
+        normalized_email,
+        require_email=True,
+    )
     if validation_error:
         return AuthResult(success=False, message=validation_error)
 
@@ -388,7 +415,7 @@ def register_user(
             conn.commit()
             return AuthResult(success=True, message=REGISTRATION_PENDING_MESSAGE)
         except sqlite3.IntegrityError:
-            return AuthResult(success=False, message="Employee ID already exists.")
+            return AuthResult(success=False, message="An account with this Employee ID already exists.")
 
 
 def authenticate_user(employee_id: str, password: str) -> AuthResult:
@@ -401,7 +428,7 @@ def authenticate_user(employee_id: str, password: str) -> AuthResult:
         ).fetchone()
 
         if row is None:
-            return AuthResult(success=False, message="Invalid credentials.")
+            return AuthResult(success=False, message="Employee ID or password is incorrect.")
 
         locked_until = row["locked_until"]
         if locked_until:
@@ -428,7 +455,7 @@ def authenticate_user(employee_id: str, password: str) -> AuthResult:
                 (failed_attempts, new_lock_time, row["id"]),
             )
             conn.commit()
-            return AuthResult(success=False, message="Invalid credentials.")
+            return AuthResult(success=False, message="Employee ID or password is incorrect.")
 
         approval_status = str(row["approval_status"] or APPROVAL_PENDING)
         if approval_status == APPROVAL_PENDING:
@@ -578,6 +605,27 @@ def list_review_history(limit: int = 100, include_admin: bool = False) -> list[d
     return [_serialize_user_row(row) for row in rows]
 
 
+def list_active_users(include_admin: bool = False) -> list[dict]:
+    query = """
+        SELECT u.*, reviewer.employee_id AS reviewer_employee_id, reviewer.full_name AS reviewer_name
+        FROM users u
+        LEFT JOIN users reviewer ON reviewer.id = u.reviewed_by
+        WHERE u.approval_status = ?
+    """
+    params: list[object] = [APPROVAL_APPROVED]
+
+    if not include_admin:
+        query += " AND u.role != ?"
+        params.append(ROLE_ADMIN)
+
+    query += " ORDER BY u.full_name ASC"
+
+    with _connection() as conn:
+        rows = conn.execute(query, params).fetchall()
+
+    return [_serialize_user_row(row) for row in rows]
+
+
 def review_user_account(
     user_id: int,
     approval_status: str,
@@ -633,6 +681,23 @@ def review_user_account(
     if reviewed is None:
         raise LookupError("User not found after review update.")
     return reviewed
+
+
+def grant_user_access_by_employee_id(
+    employee_id: str,
+    reviewed_by: int,
+    review_reason: Optional[str] = None,
+) -> dict:
+    target = get_user_by_employee_id(employee_id)
+    if target is None:
+        raise LookupError("Employee was not found.")
+
+    return review_user_account(
+        user_id=int(target["id"]),
+        approval_status=APPROVAL_APPROVED,
+        reviewed_by=reviewed_by,
+        review_reason=review_reason,
+    )
 
 
 def set_user_approval_status(
@@ -987,7 +1052,13 @@ def bootstrap_admin_user() -> AuthResult:
     admin_password = os.getenv(ADMIN_PASSWORD_ENV) or DEFAULT_ADMIN_PASSWORD
     admin_email = _normalize_optional_email(os.getenv(ADMIN_EMAIL_ENV))
 
-    validation_error = _validate_registration(admin_employee_id, admin_name, admin_password)
+    validation_error = _validate_registration(
+        admin_employee_id,
+        admin_name,
+        admin_password,
+        admin_email,
+        require_email=False,
+    )
     if validation_error:
         return AuthResult(success=False, message=f"Admin bootstrap failed: {validation_error}")
 

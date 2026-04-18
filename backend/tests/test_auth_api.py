@@ -67,6 +67,7 @@ def test_duplicate_registration_returns_400(client: TestClient):
         "employee_id": "EMP2001",
         "full_name": "Priya Singh",
         "password": "StrongPass#789",
+        "email": "priya@example.com",
     }
 
     first = client.post("/api/v1/auth/register", json=payload)
@@ -89,6 +90,7 @@ def test_rejected_user_login_is_blocked_with_clear_message(client: TestClient):
         "employee_id": "EMP2002",
         "full_name": "Rejected User",
         "password": "StrongPass#789",
+        "email": "rejected@example.com",
     }
     register_response = client.post("/api/v1/auth/register", json=payload)
     assert register_response.status_code == 201
@@ -105,3 +107,58 @@ def test_rejected_user_login_is_blocked_with_clear_message(client: TestClient):
     )
     assert login_response.status_code == 403
     assert "rejected" in login_response.json()["detail"].lower()
+
+
+def test_register_requires_email(client: TestClient):
+    response = client.post(
+        "/api/v1/auth/register",
+        json={
+            "employee_id": "EMP2010",
+            "full_name": "No Email User",
+            "password": "StrongPass#789",
+        },
+    )
+    assert response.status_code == 422
+
+
+def test_admin_and_employee_sessions_can_coexist(client: TestClient):
+    register_payload = {
+        "employee_id": "EMP2011",
+        "full_name": "Coexist User",
+        "password": "StrongPass#789",
+        "email": "coexist.user@example.com",
+    }
+    register_response = client.post("/api/v1/auth/register", json=register_payload)
+    assert register_response.status_code == 201
+    assert chat_store.set_user_approval_status("EMP2011", chat_store.APPROVAL_APPROVED)
+
+    employee_login = client.post(
+        "/api/v1/auth/login",
+        json={"employee_id": "EMP2011", "password": "StrongPass#789"},
+    )
+    assert employee_login.status_code == 200
+    employee_token = employee_login.json()["access_token"]
+
+    admin_login = client.post(
+        "/api/v1/auth/login",
+        json={
+            "employee_id": chat_store.DEFAULT_ADMIN_EMPLOYEE_ID,
+            "password": chat_store.DEFAULT_ADMIN_PASSWORD,
+        },
+    )
+    assert admin_login.status_code == 200
+    admin_token = admin_login.json()["access_token"]
+
+    employee_me = client.get(
+        "/api/v1/auth/me",
+        headers={"Authorization": f"Bearer {employee_token}"},
+    )
+    admin_me = client.get(
+        "/api/v1/auth/me",
+        headers={"Authorization": f"Bearer {admin_token}"},
+    )
+
+    assert employee_me.status_code == 200
+    assert admin_me.status_code == 200
+    assert employee_me.json()["role"] == "user"
+    assert admin_me.json()["role"] == "admin"

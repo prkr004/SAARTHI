@@ -1,7 +1,19 @@
+export type AuthScope = "employee" | "admin";
+
 const STORAGE_KEYS = {
-  token: "saarthi_token",
+  employeeToken: "saarthi_employee_token",
+  adminToken: "saarthi_admin_token",
+  legacyToken: "saarthi_token",
   selectedModel: "saarthi_selected_model",
 } as const;
+
+function resolveScope(pathname: string): AuthScope {
+  return pathname.startsWith("/admin") ? "admin" : "employee";
+}
+
+function keyForScope(scope: AuthScope): string {
+  return scope === "admin" ? STORAGE_KEYS.adminToken : STORAGE_KEYS.employeeToken;
+}
 
 function getSafeStorage(): Storage | null {
   if (typeof window === "undefined") {
@@ -10,15 +22,55 @@ function getSafeStorage(): Storage | null {
   return window.localStorage;
 }
 
+function migrateLegacyToken(store: Storage): void {
+  const legacyToken = store.getItem(STORAGE_KEYS.legacyToken);
+  if (!legacyToken) {
+    return;
+  }
+
+  const employeeToken = store.getItem(STORAGE_KEYS.employeeToken);
+  if (!employeeToken) {
+    store.setItem(STORAGE_KEYS.employeeToken, legacyToken);
+  }
+  store.removeItem(STORAGE_KEYS.legacyToken);
+}
+
 export const storage = {
-  getToken(): string | null {
-    return getSafeStorage()?.getItem(STORAGE_KEYS.token) ?? null;
+  resolveScope,
+  getToken(scope: AuthScope = "employee"): string | null {
+    const store = getSafeStorage();
+    if (!store) {
+      return null;
+    }
+    migrateLegacyToken(store);
+    return store.getItem(keyForScope(scope));
   },
-  setToken(token: string): void {
-    getSafeStorage()?.setItem(STORAGE_KEYS.token, token);
+  getTokenForPath(pathname: string): string | null {
+    return this.getToken(resolveScope(pathname));
   },
-  clearToken(): void {
-    getSafeStorage()?.removeItem(STORAGE_KEYS.token);
+  getTokenForCurrentPath(): string | null {
+    const pathname = typeof window === "undefined" ? "/" : window.location.pathname;
+    return this.getTokenForPath(pathname);
+  },
+  setToken(token: string, scope: AuthScope = "employee"): void {
+    const store = getSafeStorage();
+    if (!store) {
+      return;
+    }
+    migrateLegacyToken(store);
+    store.setItem(keyForScope(scope), token);
+  },
+  clearToken(scope: AuthScope = "employee"): void {
+    getSafeStorage()?.removeItem(keyForScope(scope));
+  },
+  clearAllTokens(): void {
+    const store = getSafeStorage();
+    if (!store) {
+      return;
+    }
+    store.removeItem(STORAGE_KEYS.employeeToken);
+    store.removeItem(STORAGE_KEYS.adminToken);
+    store.removeItem(STORAGE_KEYS.legacyToken);
   },
   getSelectedModel(): string | null {
     return getSafeStorage()?.getItem(STORAGE_KEYS.selectedModel) ?? null;

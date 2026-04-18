@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     log_format: Literal["text", "json"] = "text"
 
     # Comma-separated origins for local web apps (e.g. Vite dev server).
-    cors_allowed_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    cors_allowed_origins: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174"
     cors_allowed_methods: str = "GET,POST,PATCH,DELETE,OPTIONS"
     cors_allowed_headers: str = "Authorization,Content-Type,X-Request-Id"
     cors_expose_headers: str = "X-Request-Id,X-Process-Time-Ms"
@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     admin_action_rate_limit_window_seconds: int = Field(default=60, ge=1, le=3600)
     admin_action_rate_limit_max_requests: int = Field(default=60, ge=1, le=10000)
 
-    notification_provider: Literal["noop", "console", "smtp"] = "console"
+    notification_provider: Literal["noop", "console", "smtp", "gmail"] = "console"
     notification_from_email: str = "no-reply@saarthi.local"
     notification_smtp_host: str = "localhost"
     notification_smtp_port: int = Field(default=25, ge=1, le=65535)
@@ -55,6 +55,8 @@ class Settings(BaseSettings):
     notification_smtp_use_ssl: bool = False
     notification_smtp_use_starttls: bool = False
     notification_smtp_timeout_seconds: int = Field(default=10, ge=1, le=60)
+    notification_gmail_user: str | None = None
+    notification_gmail_app_password: str | None = None
 
     include_internal_error_details: bool | None = None
 

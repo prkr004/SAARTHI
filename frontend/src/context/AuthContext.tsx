@@ -1,8 +1,15 @@
 import { createContext, useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 
 import { api } from "../lib/api/endpoints";
 import type { UserProfile } from "../lib/api/types";
+import type { AuthScope } from "../lib/storage";
 import { storage } from "../lib/storage";
+
+type ScopedAuthState<T> = {
+  employee: T;
+  admin: T;
+};
 
 interface AuthContextValue {
   user: UserProfile | null;
@@ -10,7 +17,7 @@ interface AuthContextValue {
   loading: boolean;
   isAuthenticated: boolean;
   login: (employeeId: string, password: string) => Promise<UserProfile>;
-  register: (employeeId: string, fullName: string, password: string, email?: string) => Promise<string>;
+  register: (employeeId: string, fullName: string, password: string, email: string) => Promise<string>;
   logout: () => Promise<void>;
 }
 
@@ -21,16 +28,34 @@ interface AuthProviderProps {
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
-  const [token, setToken] = useState<string | null>(() => storage.getToken());
-  const [user, setUser] = useState<UserProfile | null>(null);
+  const location = useLocation();
+  const scope: AuthScope = storage.resolveScope(location.pathname);
+
+  const [tokens, setTokens] = useState<ScopedAuthState<string | null>>(() => ({
+    employee: storage.getToken("employee"),
+    admin: storage.getToken("admin"),
+  }));
+  const [users, setUsers] = useState<ScopedAuthState<UserProfile | null>>({
+    employee: null,
+    admin: null,
+  });
   const [loading, setLoading] = useState(true);
+
+  const token = scope === "admin" ? tokens.admin : tokens.employee;
+  const user = scope === "admin" ? users.admin : users.employee;
 
   useEffect(() => {
     let active = true;
 
     async function bootstrapAuth() {
+      setLoading(true);
+
       if (!token) {
         if (active) {
+          setUsers((current) => ({
+            ...current,
+            [scope]: null,
+          }));
           setLoading(false);
         }
         return;
@@ -39,13 +64,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
       try {
         const profile = await api.me();
         if (active) {
-          setUser(profile);
+          setUsers((current) => ({
+            ...current,
+            [scope]: profile,
+          }));
         }
       } catch {
-        storage.clearToken();
+        storage.clearToken(scope);
         if (active) {
-          setToken(null);
-          setUser(null);
+          setTokens((current) => ({
+            ...current,
+            [scope]: null,
+          }));
+          setUsers((current) => ({
+            ...current,
+            [scope]: null,
+          }));
         }
       } finally {
         if (active) {
@@ -59,17 +93,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
     return () => {
       active = false;
     };
-  }, [token]);
+  }, [scope, token]);
 
   async function login(employeeId: string, password: string): Promise<UserProfile> {
     const response = await api.login({ employee_id: employeeId, password });
-    storage.setToken(response.access_token);
-    setToken(response.access_token);
-    setUser(response.user);
+    storage.setToken(response.access_token, scope);
+    setTokens((current) => ({
+      ...current,
+      [scope]: response.access_token,
+    }));
+    setUsers((current) => ({
+      ...current,
+      [scope]: response.user,
+    }));
     return response.user;
   }
 
-  async function register(employeeId: string, fullName: string, password: string, email?: string): Promise<string> {
+  async function register(employeeId: string, fullName: string, password: string, email: string): Promise<string> {
     const response = await api.register({ employee_id: employeeId, full_name: fullName, password, email });
     return response.message;
   }
@@ -78,9 +118,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       await api.logout();
     } finally {
-      storage.clearToken();
-      setToken(null);
-      setUser(null);
+      storage.clearToken(scope);
+      setTokens((current) => ({
+        ...current,
+        [scope]: null,
+      }));
+      setUsers((current) => ({
+        ...current,
+        [scope]: null,
+      }));
     }
   }
 

@@ -185,3 +185,7 @@ export interface IngestionJobCreateResponse {
 export interface IngestionJobListResponse {
   jobs: IngestionJobSummary[];
 }
+
+export interface ActiveUsersResponse {
+  users: AdminUserSummary[];
+}

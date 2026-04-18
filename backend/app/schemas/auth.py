@@ -14,7 +14,7 @@ class RegisterRequest(BaseModel):
     employee_id: str = Field(min_length=4, max_length=24, pattern=r"^[A-Za-z0-9_-]+$")
     full_name: str = Field(min_length=3, max_length=120)
     password: str = Field(min_length=12, max_length=256)
-    email: str | None = Field(default=None, max_length=320)
+    email: str = Field(min_length=5, max_length=320)
 
     @field_validator("employee_id", mode="before")
     @classmethod
@@ -31,19 +31,17 @@ class RegisterRequest(BaseModel):
 
     @field_validator("email", mode="before")
     @classmethod
-    def normalize_email(cls, value: object) -> str | None:
-        if value is None:
-            return None
+    def normalize_email(cls, value: object) -> str:
         cleaned = sanitize_text(value, collapse_whitespace=True)
         if not cleaned:
-            return None
+            raise ValueError("Email address is required.")
         if "@" not in cleaned or cleaned.startswith("@") or cleaned.endswith("@"):
             raise ValueError("Please enter a valid email address.")
-        return cleaned
+        return cleaned.lower()
 
 
 class LoginRequest(BaseModel):
-    employee_id: str = Field(min_length=4, max_length=24)
+    employee_id: str = Field(min_length=4, max_length=24, pattern=r"^[A-Za-z0-9_-]+$")
     password: str = Field(min_length=1, max_length=256)
 
     @field_validator("employee_id", mode="before")

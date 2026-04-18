@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { MessageBubble } from "../components/chat/MessageBubble";
 import { MessageComposer } from "../components/chat/MessageComposer";
@@ -70,7 +70,12 @@ function toFrontendMessage(message: MessageItem): FrontendMessage {
 
 export function ChatPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, logout } = useAuth();
+  const isAdminPortal = location.pathname.startsWith("/admin");
+  const loginRoute = isAdminPortal ? "/admin/login" : "/login";
+  const draftingRoute = isAdminPortal ? "/admin/drafting" : "/drafting";
+  const settingsRoute = isAdminPortal ? "/admin/dashboard" : "/settings";
 
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
@@ -253,7 +258,7 @@ export function ChatPage() {
   }
 
   function handleOpenDrafting() {
-    navigate("/drafting");
+    navigate(draftingRoute);
   }
 
   async function handleSubmitQuestion() {
@@ -329,7 +334,7 @@ export function ChatPage() {
 
       if (sendError instanceof ApiClientError && sendError.status === 401) {
         await logout();
-        navigate("/login", { replace: true });
+        navigate(loginRoute, { replace: true });
       } else {
         setError(message);
       }
@@ -340,7 +345,7 @@ export function ChatPage() {
 
   async function handleLogout() {
     await logout();
-    navigate("/login", { replace: true });
+    navigate(loginRoute, { replace: true });
   }
 
   return (
@@ -365,7 +370,7 @@ export function ChatPage() {
           onOpenDrafting={handleOpenDrafting}
           onOpenSettings={() => {
             setSidebarOpen(false);
-            navigate("/settings");
+            navigate(settingsRoute);
           }}
           onLogout={handleLogout}
         />

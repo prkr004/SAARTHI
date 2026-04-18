@@ -6,6 +6,29 @@ import { AuthCard } from "../components/auth/AuthCard";
 import { useAuth } from "../hooks/useAuth";
 import { toUserErrorMessage } from "../lib/errors";
 
+const EMPLOYEE_ID_PATTERN = /^[A-Za-z0-9_-]{4,24}$/;
+const EMAIL_PATTERN = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+
+function validateEmployeeId(value: string): string | null {
+  if (!value) {
+    return "Employee ID is required.";
+  }
+  if (!EMPLOYEE_ID_PATTERN.test(value)) {
+    return "Employee ID must be 4-24 characters and can only contain letters, numbers, underscores, or hyphens.";
+  }
+  return null;
+}
+
+function validateEmail(value: string): string | null {
+  if (!value) {
+    return "Email address is required.";
+  }
+  if (!EMAIL_PATTERN.test(value)) {
+    return "Please enter a valid email address.";
+  }
+  return null;
+}
+
 function validatePassword(value: string): string | null {
   if (value.length < 12) {
     return "Password must be at least 12 characters.";
@@ -43,8 +66,29 @@ export function RegisterPage() {
     setError(null);
     setSuccess(null);
 
-    if (!fullName.trim() || !employeeId.trim()) {
-      setError("Please provide your full name and employee ID.");
+    const normalizedFullName = fullName.trim();
+    const normalizedEmployeeId = employeeId.trim();
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedFullName) {
+      setError("Full name is required.");
+      return;
+    }
+
+    if (normalizedFullName.length < 3) {
+      setError("Please enter your full name.");
+      return;
+    }
+
+    const employeeIdError = validateEmployeeId(normalizedEmployeeId);
+    if (employeeIdError) {
+      setError(employeeIdError);
+      return;
+    }
+
+    const emailError = validateEmail(normalizedEmail);
+    if (emailError) {
+      setError(emailError);
       return;
     }
 
@@ -61,7 +105,7 @@ export function RegisterPage() {
 
     setSubmitting(true);
     try {
-      const message = await register(employeeId.trim(), fullName.trim(), password, email.trim() || undefined);
+      const message = await register(normalizedEmployeeId, normalizedFullName, password, normalizedEmail);
       setSuccess(message);
       window.setTimeout(() => navigate("/login", { replace: true }), 1400);
     } catch (submitError) {
@@ -96,7 +140,7 @@ export function RegisterPage() {
         </label>
 
         <label className="field">
-          <span>Email (optional)</span>
+          <span>Email</span>
           <input
             type="email"
             value={email}
