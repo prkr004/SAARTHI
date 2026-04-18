@@ -41,6 +41,7 @@ def _register_and_login(client: TestClient, employee_id: str, password: str = "S
             "password": password,
         },
     )
+    chat_store.set_user_approval_status(employee_id, chat_store.APPROVAL_APPROVED)
     login = client.post(
         "/api/v1/auth/login",
         json={"employee_id": employee_id, "password": password},
@@ -59,6 +60,8 @@ def test_auth_sanitizes_employee_id_and_full_name(client: TestClient):
         },
     )
     assert response.status_code == 201
+
+    assert chat_store.set_user_approval_status("EMP5001", chat_store.APPROVAL_APPROVED)
 
     login = client.post(
         "/api/v1/auth/login",

@@ -14,6 +14,7 @@ class RegisterRequest(BaseModel):
     employee_id: str = Field(min_length=4, max_length=24, pattern=r"^[A-Za-z0-9_-]+$")
     full_name: str = Field(min_length=3, max_length=120)
     password: str = Field(min_length=12, max_length=256)
+    email: str | None = Field(default=None, max_length=320)
 
     @field_validator("employee_id", mode="before")
     @classmethod
@@ -26,6 +27,18 @@ class RegisterRequest(BaseModel):
         cleaned = sanitize_text(value, collapse_whitespace=True)
         if len(cleaned) < 3:
             raise ValueError("Please enter your full name.")
+        return cleaned
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def normalize_email(cls, value: object) -> str | None:
+        if value is None:
+            return None
+        cleaned = sanitize_text(value, collapse_whitespace=True)
+        if not cleaned:
+            return None
+        if "@" not in cleaned or cleaned.startswith("@") or cleaned.endswith("@"):
+            raise ValueError("Please enter a valid email address.")
         return cleaned
 
 
@@ -43,6 +56,9 @@ class UserProfile(BaseModel):
     user_id: int
     employee_id: str
     full_name: str
+    role: Literal["admin", "user"]
+    approval_status: Literal["pending", "approved", "rejected"]
+    email: str | None = None
 
 
 class AuthTokenResponse(BaseModel):

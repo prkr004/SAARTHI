@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from chat_store import authenticate_user, register_user
+from chat_store import (
+    APPROVAL_PENDING,
+    APPROVAL_REJECTED,
+    authenticate_user,
+    register_user,
+)
 
 from backend.app.api.deps import get_bearer_token, get_current_user
 from backend.app.schemas.auth import AuthTokenResponse, LoginRequest, RegisterRequest, UserProfile
@@ -20,6 +25,7 @@ def register(payload: RegisterRequest) -> ApiMessage:
         employee_id=payload.employee_id,
         full_name=payload.full_name,
         password=payload.password,
+        email=payload.email,
     )
     if not result.success:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=result.message)
@@ -34,7 +40,10 @@ def login(payload: LoginRequest, request: Request) -> AuthTokenResponse:
         password=payload.password,
     )
     if not result.success or result.user_id is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=result.message)
+        status_code = status.HTTP_401_UNAUTHORIZED
+        if result.approval_status in {APPROVAL_PENDING, APPROVAL_REJECTED}:
+            status_code = status.HTTP_403_FORBIDDEN
+        raise HTTPException(status_code=status_code, detail=result.message)
 
     token, expires_at = create_session(
         user_id=result.user_id,
@@ -48,6 +57,9 @@ def login(payload: LoginRequest, request: Request) -> AuthTokenResponse:
             user_id=int(result.user_id),
             employee_id=str(result.employee_id),
             full_name=str(result.full_name),
+            role=str(result.role),
+            approval_status=str(result.approval_status),
+            email=result.email,
         ),
     )
 

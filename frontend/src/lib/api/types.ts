@@ -1,4 +1,6 @@
 export type Role = "user" | "assistant";
+export type UserRole = "admin" | "user";
+export type ApprovalStatus = "pending" | "approved" | "rejected";
 
 export interface ApiErrorPayload {
   code: string;
@@ -22,6 +24,9 @@ export interface UserProfile {
   user_id: number;
   employee_id: string;
   full_name: string;
+  role: UserRole;
+  approval_status: ApprovalStatus;
+  email?: string | null;
 }
 
 export interface AuthTokenResponse {
@@ -129,4 +134,54 @@ export interface GenerateDocumentRequest {
   document_type: "circular" | "press_release" | "advisory";
   query: string;
   audience: string;
+}
+
+export interface AdminUserSummary {
+  id: number;
+  employee_id: string;
+  full_name: string;
+  email?: string | null;
+  role: UserRole;
+  approval_status: ApprovalStatus;
+  created_at: string;
+  reviewed_by?: number | null;
+  reviewed_at?: string | null;
+  review_reason?: string | null;
+  reviewer_employee_id?: string | null;
+  reviewer_name?: string | null;
+}
+
+export interface ReviewUserResponse {
+  message: string;
+  user: AdminUserSummary;
+  warning?: string | null;
+}
+
+export type IngestionJobStatus = "queued" | "running" | "completed" | "failed";
+
+export interface IngestionJobSummary {
+  job_id: string;
+  created_by: number;
+  created_by_employee_id?: string | null;
+  created_by_name?: string | null;
+  created_at: string;
+  updated_at: string;
+  started_at?: string | null;
+  completed_at?: string | null;
+  status: IngestionJobStatus;
+  total_files: number;
+  processed_files: number;
+  total_chunks: number;
+  progress_percent: number;
+  current_file?: string | null;
+  error_message?: string | null;
+}
+
+export interface IngestionJobCreateResponse {
+  message: string;
+  job: IngestionJobSummary;
+}
+
+export interface IngestionJobListResponse {
+  jobs: IngestionJobSummary[];
 }

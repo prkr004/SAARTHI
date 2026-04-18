@@ -89,12 +89,12 @@ def _set_font(run, *, size: int = 11, bold: bool = False, italic: bool = False, 
         pass
 
 
-def _set_cell_text(cell, text: str, *, bold: bool = False, size: int = 11, alignment=WD_ALIGN_PARAGRAPH.LEFT) -> None:
+def _set_cell_text(cell, text: str, *, bold: bool = False, size: int = 11, alignment=None) -> None:
     cell.text = ""
     paragraph = cell.paragraphs[0]
     run = paragraph.add_run(text)
     _set_font(run, size=size, bold=bold)
-    paragraph.alignment = alignment
+    paragraph.alignment = alignment if alignment is not None else getattr(WD_ALIGN_PARAGRAPH, "LEFT", None)
     _set_paragraph_spacing(paragraph, after=0)
 
 

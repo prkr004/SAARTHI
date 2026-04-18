@@ -93,6 +93,8 @@ npm run dev
 ## URLs
 
 - Frontend: http://localhost:5173
+- Admin Login: http://localhost:5173/admin/login
+- Admin Dashboard: http://localhost:5173/admin/dashboard
 - API docs: http://localhost:8000/docs
 - Health (live): http://localhost:8000/api/v1/health/live
 - Health (ready): http://localhost:8000/api/v1/health/ready
@@ -103,6 +105,48 @@ npm run dev
 - Password: `AdminPass#2026`
 
 You can override these with environment variables in `.env`.
+
+Additional admin bootstrap variables:
+
+- `SAARTHI_ADMIN_EMPLOYEE_ID`
+- `SAARTHI_ADMIN_NAME`
+- `SAARTHI_ADMIN_PASSWORD`
+- `SAARTHI_ADMIN_EMAIL`
+
+At backend startup, the bootstrap admin is enforced to role `admin` and approval status `approved`.
+
+## User Approval Workflow
+
+- New user registrations are created in `pending` status by default.
+- Registration success message:
+	- `Your request has been sent to the admin. Once approved, you will have access to SAARTHI!`
+- Pending/rejected users cannot log in.
+- Admin can approve/reject requests from the admin portal.
+
+## Email Notification Setup
+
+Approval/rejection notifications are configurable through:
+
+- `SAARTHI_NOTIFICATION_PROVIDER` = `noop` | `console` | `smtp`
+- `SAARTHI_NOTIFICATION_FROM_EMAIL`
+- `SAARTHI_NOTIFICATION_SMTP_HOST`
+- `SAARTHI_NOTIFICATION_SMTP_PORT`
+- `SAARTHI_NOTIFICATION_SMTP_USERNAME`
+- `SAARTHI_NOTIFICATION_SMTP_PASSWORD`
+- `SAARTHI_NOTIFICATION_SMTP_USE_SSL`
+- `SAARTHI_NOTIFICATION_SMTP_USE_STARTTLS`
+
+If notification delivery fails, the admin approval/rejection action still completes and returns a warning.
+
+## Upload Limits and Ingestion
+
+Admin ingestion settings:
+
+- `SAARTHI_ADMIN_UPLOAD_DIRECTORY` (default `data/admin_uploads`)
+- `SAARTHI_ADMIN_UPLOAD_MAX_FILES_PER_JOB` (default `12`)
+- `SAARTHI_ADMIN_UPLOAD_MAX_FILE_SIZE_MB` (default `20`)
+
+Uploaded PDFs are ingested incrementally with persistent job progress, and RAG cache refresh is triggered automatically on completion.
 
 ## Optional one-command dev start
 

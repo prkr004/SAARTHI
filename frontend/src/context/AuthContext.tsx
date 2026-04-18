@@ -9,8 +9,8 @@ interface AuthContextValue {
   token: string | null;
   loading: boolean;
   isAuthenticated: boolean;
-  login: (employeeId: string, password: string) => Promise<void>;
-  register: (employeeId: string, fullName: string, password: string) => Promise<void>;
+  login: (employeeId: string, password: string) => Promise<UserProfile>;
+  register: (employeeId: string, fullName: string, password: string, email?: string) => Promise<string>;
   logout: () => Promise<void>;
 }
 
@@ -61,15 +61,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
     };
   }, [token]);
 
-  async function login(employeeId: string, password: string): Promise<void> {
+  async function login(employeeId: string, password: string): Promise<UserProfile> {
     const response = await api.login({ employee_id: employeeId, password });
     storage.setToken(response.access_token);
     setToken(response.access_token);
     setUser(response.user);
+    return response.user;
   }
 
-  async function register(employeeId: string, fullName: string, password: string): Promise<void> {
-    await api.register({ employee_id: employeeId, full_name: fullName, password });
+  async function register(employeeId: string, fullName: string, password: string, email?: string): Promise<string> {
+    const response = await api.register({ employee_id: employeeId, full_name: fullName, password, email });
+    return response.message;
   }
 
   async function logout(): Promise<void> {

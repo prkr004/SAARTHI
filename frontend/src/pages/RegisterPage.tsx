@@ -31,6 +31,7 @@ export function RegisterPage() {
 
   const [fullName, setFullName] = useState("");
   const [employeeId, setEmployeeId] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -60,9 +61,9 @@ export function RegisterPage() {
 
     setSubmitting(true);
     try {
-      await register(employeeId.trim(), fullName.trim(), password);
-      setSuccess("Account created successfully. Redirecting to login...");
-      window.setTimeout(() => navigate("/login", { replace: true }), 900);
+      const message = await register(employeeId.trim(), fullName.trim(), password, email.trim() || undefined);
+      setSuccess(message);
+      window.setTimeout(() => navigate("/login", { replace: true }), 1400);
     } catch (submitError) {
       setError(toUserErrorMessage(submitError));
     } finally {
@@ -91,6 +92,17 @@ export function RegisterPage() {
             onChange={(event) => setEmployeeId(event.target.value)}
             placeholder="EMP1234"
             maxLength={24}
+          />
+        </label>
+
+        <label className="field">
+          <span>Email (optional)</span>
+          <input
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="name@example.com"
+            autoComplete="email"
           />
         </label>
 

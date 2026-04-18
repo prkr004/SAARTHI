@@ -6,9 +6,9 @@ import { AuthCard } from "../components/auth/AuthCard";
 import { useAuth } from "../hooks/useAuth";
 import { toUserErrorMessage } from "../lib/errors";
 
-export function LoginPage() {
+export function AdminLoginPage() {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, logout } = useAuth();
 
   const [employeeId, setEmployeeId] = useState("");
   const [password, setPassword] = useState("");
@@ -20,14 +20,19 @@ export function LoginPage() {
     setError(null);
 
     if (!employeeId.trim() || !password.trim()) {
-      setError("Please enter Employee ID and password.");
+      setError("Please enter admin Employee ID and password.");
       return;
     }
 
     setSubmitting(true);
     try {
       const profile = await login(employeeId.trim(), password);
-      navigate(profile.role === "admin" ? "/admin/dashboard" : "/", { replace: true });
+      if (profile.role !== "admin") {
+        await logout();
+        setError("This portal is restricted to admin users.");
+        return;
+      }
+      navigate("/admin/dashboard", { replace: true });
     } catch (submitError) {
       setError(toUserErrorMessage(submitError));
     } finally {
@@ -37,19 +42,19 @@ export function LoginPage() {
 
   return (
     <AuthCard
-      title="Secure Employee Login"
-      subtitle="Access SAARTHI to query regulatory guidance with auditable sources."
-      footerText="New employee?"
-      footerLinkLabel="Create an account"
-      footerLinkTo="/register"
+      title="Admin Portal Sign-In"
+      subtitle="Manage user approvals and ingestion jobs for SAARTHI operations."
+      footerText="Are you an employee user?"
+      footerLinkLabel="Open employee login"
+      footerLinkTo="/login"
     >
       <form className="auth-form" onSubmit={handleSubmit}>
         <label className="field">
-          <span>Employee ID</span>
+          <span>Admin Employee ID</span>
           <input
             value={employeeId}
             onChange={(event) => setEmployeeId(event.target.value)}
-            placeholder="EMP1234"
+            placeholder="ADMIN001"
             maxLength={24}
             autoComplete="username"
           />
@@ -72,12 +77,8 @@ export function LoginPage() {
         ) : null}
 
         <button type="submit" className="button button--primary" disabled={submitting}>
-          {submitting ? "Signing in..." : "Login"}
+          {submitting ? "Signing in..." : "Login as Admin"}
         </button>
-
-        <p className="form-subnote">
-          By continuing, you agree to use this assistant for regulatory research support and verify with official RBI circulars.
-        </p>
       </form>
 
       <p className="small-link">

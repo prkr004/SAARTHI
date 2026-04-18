@@ -39,6 +39,23 @@ class Settings(BaseSettings):
     hybrid_keyword_weight: float = Field(default=0.3, ge=0.0, le=1.0)
     hybrid_candidate_multiplier: int = Field(default=4, ge=1, le=20)
     hybrid_keyword_min_token_length: int = Field(default=3, ge=1, le=20)
+
+    admin_upload_directory: str = "data/admin_uploads"
+    admin_upload_max_files_per_job: int = Field(default=12, ge=1, le=100)
+    admin_upload_max_file_size_mb: int = Field(default=20, ge=1, le=200)
+    admin_action_rate_limit_window_seconds: int = Field(default=60, ge=1, le=3600)
+    admin_action_rate_limit_max_requests: int = Field(default=60, ge=1, le=10000)
+
+    notification_provider: Literal["noop", "console", "smtp"] = "console"
+    notification_from_email: str = "no-reply@saarthi.local"
+    notification_smtp_host: str = "localhost"
+    notification_smtp_port: int = Field(default=25, ge=1, le=65535)
+    notification_smtp_username: str | None = None
+    notification_smtp_password: str | None = None
+    notification_smtp_use_ssl: bool = False
+    notification_smtp_use_starttls: bool = False
+    notification_smtp_timeout_seconds: int = Field(default=10, ge=1, le=60)
+
     include_internal_error_details: bool | None = None
 
     model_config = SettingsConfigDict(

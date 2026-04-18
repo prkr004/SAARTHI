@@ -6,7 +6,13 @@ export function toUserErrorMessage(error: unknown): string {
       return "The request took too long. Please try again.";
     }
     if (error.status === 401) {
+      if (/invalid credentials/i.test(error.message)) {
+        return error.message;
+      }
       return "Your session has expired. Please login again.";
+    }
+    if (error.status === 403) {
+      return error.message;
     }
     if (error.status === 503 && error.code === "model_unavailable") {
       return "Model service is unavailable. Ensure Ollama is running and the model is installed.";

@@ -24,10 +24,25 @@ npm run dev
 
 Default URL: http://localhost:5173
 
+Admin URLs:
+
+- http://localhost:5173/admin/login
+- http://localhost:5173/admin/dashboard
+
 ## Environment Variables
 
 - VITE_API_BASE_URL
   - Default: http://localhost:8000/api/v1
+
+## Admin UX Notes
+
+- Admin routes are guarded client-side and require authenticated `role=admin`.
+- Admin dashboard includes feature cards for:
+  - RAG Chatbot (routes to existing chat module)
+  - Document Generator (routes to existing drafting module)
+  - Authenticate Users
+  - Upload Documents
+- Upload Documents panel performs live progress polling for ingestion jobs.
 
 ## Scripts
 

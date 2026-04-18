@@ -126,7 +126,14 @@ def get_session_user(token: str) -> Optional[dict]:
     with _connection() as conn:
         row = conn.execute(
             """
-            SELECT u.id AS user_id, u.employee_id, u.full_name, s.expires_at
+                        SELECT
+                                u.id AS user_id,
+                                u.employee_id,
+                                u.full_name,
+                                u.role,
+                                u.approval_status,
+                                u.email,
+                                s.expires_at
             FROM api_sessions s
             INNER JOIN users u ON u.id = s.user_id
             WHERE s.token_hash = ?
@@ -154,6 +161,9 @@ def get_session_user(token: str) -> Optional[dict]:
             "user_id": int(row["user_id"]),
             "employee_id": row["employee_id"],
             "full_name": row["full_name"],
+            "role": row["role"],
+            "approval_status": row["approval_status"],
+            "email": row["email"],
         }
 
 

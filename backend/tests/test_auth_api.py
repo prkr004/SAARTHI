@@ -21,10 +21,22 @@ def test_register_login_me_logout_flow(client: TestClient):
         "employee_id": "EMP1001",
         "full_name": "Aman Sharma",
         "password": "SecurePass#123",
+        "email": "aman.sharma@example.com",
     }
 
     register_response = client.post("/api/v1/auth/register", json=register_payload)
     assert register_response.status_code == 201
+    assert register_response.json()["message"] == (
+        "Your request has been sent to the admin. Once approved, you will have access to SAARTHI!"
+    )
+
+    pending_login_response = client.post(
+        "/api/v1/auth/login",
+        json={"employee_id": "EMP1001", "password": "SecurePass#123"},
+    )
+    assert pending_login_response.status_code == 403
+
+    assert chat_store.set_user_approval_status("EMP1001", chat_store.APPROVAL_APPROVED)
 
     login_response = client.post(
         "/api/v1/auth/login",
@@ -39,6 +51,9 @@ def test_register_login_me_logout_flow(client: TestClient):
     assert me_response.status_code == 200
     me_payload = me_response.json()
     assert me_payload["employee_id"] == "EMP1001"
+    assert me_payload["approval_status"] == "approved"
+    assert me_payload["role"] == "user"
+    assert me_payload["email"] == "aman.sharma@example.com"
 
     logout_response = client.post("/api/v1/auth/logout", headers=headers)
     assert logout_response.status_code == 200
@@ -67,3 +82,26 @@ def test_invalid_login_returns_401(client: TestClient):
         json={"employee_id": "NO_USER", "password": "wrong"},
     )
     assert response.status_code == 401
+
+
+def test_rejected_user_login_is_blocked_with_clear_message(client: TestClient):
+    payload = {
+        "employee_id": "EMP2002",
+        "full_name": "Rejected User",
+        "password": "StrongPass#789",
+    }
+    register_response = client.post("/api/v1/auth/register", json=payload)
+    assert register_response.status_code == 201
+
+    assert chat_store.set_user_approval_status(
+        "EMP2002",
+        chat_store.APPROVAL_REJECTED,
+        review_reason="Insufficient onboarding details",
+    )
+
+    login_response = client.post(
+        "/api/v1/auth/login",
+        json={"employee_id": "EMP2002", "password": "StrongPass#789"},
+    )
+    assert login_response.status_code == 403
+    assert "rejected" in login_response.json()["detail"].lower()

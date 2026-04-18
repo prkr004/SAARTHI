@@ -1,5 +1,6 @@
 import { apiClient } from "./client";
 import type {
+  AdminUserSummary,
   ApiEnvelope,
   ApiMessage,
   AskRequest,
@@ -8,8 +9,12 @@ import type {
   AuthTokenResponse,
   ConversationSummary,
   GenerateDocumentRequest,
+  IngestionJobCreateResponse,
+  IngestionJobListResponse,
+  IngestionJobSummary,
   MessageItem,
   ModelsResponseData,
+  ReviewUserResponse,
   UserProfile,
 } from "./types";
 
@@ -30,7 +35,7 @@ function unwrapEnvelope<T>(envelope: ApiEnvelope<T>): T {
 }
 
 export const api = {
-  register(payload: { employee_id: string; full_name: string; password: string }): Promise<ApiMessage> {
+  register(payload: { employee_id: string; full_name: string; password: string; email?: string }): Promise<ApiMessage> {
     return apiClient.post<ApiMessage>("/auth/register", payload, { requiresAuth: false });
   },
 
@@ -104,5 +109,44 @@ export const api = {
       retries: 0,
       timeoutMs: 120000,
     });
+  },
+
+  listPendingUsers(): Promise<AdminUserSummary[]> {
+    return apiClient.get<AdminUserSummary[]>("/admin/users/pending");
+  },
+
+  approveUser(userId: number, reviewReason?: string): Promise<ReviewUserResponse> {
+    return apiClient.post<ReviewUserResponse>(`/admin/users/${userId}/approve`, {
+      review_reason: reviewReason,
+    });
+  },
+
+  rejectUser(userId: number, reviewReason?: string): Promise<ReviewUserResponse> {
+    return apiClient.post<ReviewUserResponse>(`/admin/users/${userId}/reject`, {
+      review_reason: reviewReason,
+    });
+  },
+
+  listUserReviewHistory(limit = 100): Promise<{ users: AdminUserSummary[] }> {
+    return apiClient.get<{ users: AdminUserSummary[] }>(`/admin/users/history?limit=${limit}`);
+  },
+
+  createIngestionJob(files: File[]): Promise<IngestionJobCreateResponse> {
+    const formData = new FormData();
+    files.forEach((file) => {
+      formData.append("files", file);
+    });
+    return apiClient.postForm<IngestionJobCreateResponse>("/admin/ingestion/jobs", formData, {
+      retries: 0,
+      timeoutMs: 120000,
+    });
+  },
+
+  getIngestionJob(jobId: string): Promise<IngestionJobSummary> {
+    return apiClient.get<IngestionJobSummary>(`/admin/ingestion/jobs/${jobId}`);
+  },
+
+  listIngestionJobs(limit = 20): Promise<IngestionJobListResponse> {
+    return apiClient.get<IngestionJobListResponse>(`/admin/ingestion/jobs?limit=${limit}`);
   },
 };

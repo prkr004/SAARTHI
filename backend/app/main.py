@@ -14,7 +14,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from chat_store import bootstrap_admin_user, initialize_db
 
-from backend.app.api.routers import auth, chat, drafting, health, rag
+from backend.app.api.routers import admin, auth, chat, drafting, health, rag
 from backend.app.core.config import get_settings
 from backend.app.core.logging_config import configure_logging
 from backend.app.services.auth_service import initialize_session_store, purge_expired_sessions
@@ -110,6 +110,7 @@ def create_app() -> FastAPI:
 
     app.include_router(health.router, prefix=settings.api_prefix)
     app.include_router(auth.router, prefix=settings.api_prefix)
+    app.include_router(admin.router, prefix=settings.api_prefix)
     app.include_router(chat.router, prefix=settings.api_prefix)
     app.include_router(drafting.router, prefix=settings.api_prefix)
     app.include_router(rag.router, prefix=settings.api_prefix)

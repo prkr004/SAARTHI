@@ -9,6 +9,16 @@
 - GET `/api/v1/auth/me`
 - POST `/api/v1/auth/logout`
 
+### Admin (Phase 6 extension)
+
+- GET `/api/v1/admin/users/pending`
+- GET `/api/v1/admin/users/history`
+- POST `/api/v1/admin/users/{user_id}/approve`
+- POST `/api/v1/admin/users/{user_id}/reject`
+- POST `/api/v1/admin/ingestion/jobs` (multipart PDF upload)
+- GET `/api/v1/admin/ingestion/jobs/{job_id}`
+- GET `/api/v1/admin/ingestion/jobs?limit={n}`
+
 ### Conversations and Messages
 
 - GET `/api/v1/conversations`
@@ -171,6 +181,82 @@ Success response (comparison path, trimmed):
 - `model_unavailable` -> 503
 - `request_timeout` -> 504
 - `internal_error` -> 500
+
+## Auth Contract Updates (Phase 6 extension)
+
+- Registration now returns pending-approval message on success:
+  - `Your request has been sent to the admin. Once approved, you will have access to SAARTHI!`
+- Login rejects pending/rejected users with `403` and clear detail text.
+- `/api/v1/auth/me` now includes:
+  - `role`: `admin | user`
+  - `approval_status`: `pending | approved | rejected`
+  - `email`: optional
+
+## Admin API Contract Notes
+
+### Approve user
+
+POST `/api/v1/admin/users/{user_id}/approve`
+
+Request body:
+
+```json
+{
+  "review_reason": "Verified onboarding details"
+}
+```
+
+Response shape:
+
+```json
+{
+  "message": "User approved successfully.",
+  "user": {
+    "id": 27,
+    "employee_id": "EMP8123",
+    "full_name": "Aman Sharma",
+    "email": "aman@example.com",
+    "role": "user",
+    "approval_status": "approved",
+    "created_at": "2026-04-19T10:00:00+00:00",
+    "reviewed_by": 1,
+    "reviewed_at": "2026-04-19T10:03:00+00:00",
+    "review_reason": "Verified onboarding details",
+    "reviewer_employee_id": "ADMIN001",
+    "reviewer_name": "Bank Admin"
+  },
+  "warning": null
+}
+```
+
+### Create ingestion job
+
+POST `/api/v1/admin/ingestion/jobs` with form field `files` (multiple PDFs).
+
+Response shape:
+
+```json
+{
+  "message": "Ingestion job created.",
+  "job": {
+    "job_id": "RANDOM_JOB_ID",
+    "status": "queued",
+    "total_files": 3,
+    "processed_files": 0,
+    "total_chunks": 0,
+    "progress_percent": 0,
+    "current_file": null,
+    "error_message": null
+  }
+}
+```
+
+### Poll ingestion job
+
+GET `/api/v1/admin/ingestion/jobs/{job_id}` returns status transitions:
+
+- `queued` -> `running` -> `completed`
+- `queued` -> `running` -> `failed`
 
 ## Verification Checklist for Phase 4 Frontend
 
