@@ -1,10 +1,14 @@
 import { useCallback, useLayoutEffect, useRef, type FormEvent, type KeyboardEvent } from "react";
 
+import type { AskMode } from "../../lib/api/types";
+
 interface MessageComposerProps {
   value: string;
   disabled: boolean;
   isBusy?: boolean;
+  mode: AskMode;
   onChange: (value: string) => void;
+  onModeChange: (mode: AskMode) => void;
   onSubmit: () => void;
   onStop?: () => void;
   context?: "home" | "conversation";
@@ -14,7 +18,9 @@ export function MessageComposer({
   value,
   disabled,
   isBusy = false,
+  mode,
   onChange,
+  onModeChange,
   onSubmit,
   onStop,
   context = "conversation",
@@ -121,6 +127,18 @@ export function MessageComposer({
       </div>
 
       <div className="composer-row" id={inputHintId}>
+        <label className="composer-mode">
+          <span className="sr-only">Response mode</span>
+          <select
+            value={mode}
+            onChange={(event) => onModeChange(event.target.value as AskMode)}
+            disabled={disabled || isBusy}
+            aria-label="Response mode"
+          >
+            <option value="thinking">Thinking (Grounded)</option>
+            <option value="fast">Fast</option>
+          </select>
+        </label>
         <span className="composer-hint">Enter to send</span>
         <span className="composer-hint">Shift+Enter for new line</span>
       </div>

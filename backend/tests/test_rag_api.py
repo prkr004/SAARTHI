@@ -404,6 +404,104 @@ def test_temporal_non_temporal_query_falls_back_to_qa(client: TestClient, monkey
     assert body["data"]["temporal"]["intent_class"] == "fact_retrieval"
 
 
+def test_temporal_fast_mode_uses_direct_llm_path(client: TestClient, monkeypatch):
+    headers = _auth_headers(client, employee_id="EMP4017")
+
+    monkeypatch.setattr("backend.app.api.routers.rag.triage_query_intent", lambda question: "fact_retrieval")
+    monkeypatch.setattr(
+        "backend.app.api.routers.rag.ask_direct_question",
+        lambda **kwargs: {"answer": "Fast mode direct answer", "sources": []},
+    )
+    monkeypatch.setattr(
+        "backend.app.api.routers.rag.ask_question",
+        lambda **kwargs: (_ for _ in ()).throw(AssertionError("RAG path should not run for direct fast mode")),
+    )
+
+    response = client.post(
+        "/api/v1/chat/ask-temporal",
+        headers=headers,
+        json={
+            "question": "What is repo rate?",
+            "model_id": "phi:2.7b",
+            "top_k": 4,
+            "comparison_method": "both",
+            "mode": "fast",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["data"]["mode"] == "fast_direct"
+    assert body["data"]["answer"] == "Fast mode direct answer"
+    assert body["data"]["sources"] == []
+    assert body["data"]["formatted_sources"] == []
+    assert body["data"]["metadata"]["requested_mode"] == "fast"
+    assert body["data"]["metadata"]["executed_mode"] == "fast"
+    assert body["data"]["metadata"]["routing_reason"] == "fast_direct_path"
+
+
+def test_temporal_fast_mode_auto_escalates_to_thinking(client: TestClient, monkeypatch):
+    headers = _auth_headers(client, employee_id="EMP4018")
+
+    monkeypatch.setattr("backend.app.api.routers.rag.triage_query_intent", lambda question: "fact_retrieval")
+    monkeypatch.setattr(
+        "backend.app.api.routers.rag.ask_direct_question",
+        lambda **kwargs: (_ for _ in ()).throw(AssertionError("Fast direct path should be skipped")),
+    )
+    monkeypatch.setattr(
+        "backend.app.api.routers.rag.ask_question",
+        lambda **kwargs: {"answer": "Grounded answer", "sources": []},
+    )
+
+    response = client.post(
+        "/api/v1/chat/ask-temporal",
+        headers=headers,
+        json={
+            "question": "Provide source and section references for KYC rules",
+            "model_id": "phi:2.7b",
+            "top_k": 4,
+            "comparison_method": "both",
+            "mode": "fast",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["data"]["mode"] == "qa_fallback_non_temporal"
+    assert body["data"]["answer"] == "Grounded answer"
+    assert body["data"]["metadata"]["requested_mode"] == "fast"
+    assert body["data"]["metadata"]["executed_mode"] == "thinking"
+    assert body["data"]["metadata"]["routing_reason"] == "citation_or_clause_request"
+
+
+def test_temporal_mode_omitted_defaults_to_thinking(client: TestClient, monkeypatch):
+    headers = _auth_headers(client, employee_id="EMP4019")
+
+    monkeypatch.setattr("backend.app.api.routers.rag.triage_query_intent", lambda question: "fact_retrieval")
+    monkeypatch.setattr(
+        "backend.app.api.routers.rag.ask_question",
+        lambda **kwargs: {"answer": "Default thinking answer", "sources": []},
+    )
+
+    response = client.post(
+        "/api/v1/chat/ask-temporal",
+        headers=headers,
+        json={
+            "question": "What is KYC?",
+            "model_id": "phi:2.7b",
+            "top_k": 4,
+            "comparison_method": "both",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["data"]["mode"] == "qa_fallback_non_temporal"
+    assert body["data"]["metadata"]["requested_mode"] == "thinking"
+    assert body["data"]["metadata"]["executed_mode"] == "thinking"
+    assert body["data"]["metadata"]["routing_reason"] == "default_thinking_mode"
+
+
 def test_temporal_drafting_query_routes_to_stub(client: TestClient, monkeypatch):
     headers = _auth_headers(client, employee_id="EMP4009")
 

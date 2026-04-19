@@ -192,6 +192,12 @@ specialising in RBI (Reserve Bank of India) guidelines.
 Use ONLY the context below to answer the question. Be precise and reference specific
 sections or clause numbers when available.
 
+Output formatting requirements:
+- Use clean Markdown.
+- Use bullet points or numbered lists for multi-step explanations.
+- Use **bold** for key obligations/terms and *italics* for important caveats.
+- Do not include decorative symbols or unnecessary verbosity.
+
 Context:
 {context}
 
@@ -205,6 +211,30 @@ If the answer is not in the context, reply:
 prompt = PromptTemplate(
     template=PROMPT_TEMPLATE,
     input_variables=["context", "question"],
+)
+
+
+DIRECT_PROMPT_TEMPLATE = """You are SAARTHI, an RBI and banking domain assistant.
+Answer the question clearly and concisely using your built-in knowledge.
+
+Important constraints:
+- Do not claim to quote, cite, or reference indexed documents.
+- Do not invent section numbers, clause IDs, or official citations.
+- Do not mention internal system modes, routing logic, or implementation details.
+- If exact source-backed compliance text is requested, state that exact citations require source-backed retrieval.
+
+Output formatting requirements:
+- Use clean Markdown.
+- Use bullet points or numbered lists for multi-part answers.
+- Use **bold** for key terms and *italics* for caveats when helpful.
+
+Question:
+{question}
+"""
+
+direct_prompt = PromptTemplate(
+    template=DIRECT_PROMPT_TEMPLATE,
+    input_variables=["question"],
 )
 
 
@@ -504,6 +534,27 @@ def ask_question(
         "answer": answer,
         "sources": sources,
         "circular_linking": circular_linking,
+    }
+
+
+def ask_direct_question(
+    question: str,
+    model_name: str = DEFAULT_OLLAMA_MODEL,
+) -> dict:
+    """Generate a direct local-LLM answer without retrieval.
+
+    Returns ``{"answer": str, "sources": list[dict]}`` with empty sources.
+    """
+    if not question or not question.strip():
+        raise ValueError("Please enter a question before submitting.")
+
+    final_prompt = direct_prompt.format(question=question)
+    answer = get_llm(model_name=model_name).invoke(final_prompt)
+
+    return {
+        "answer": answer,
+        "sources": [],
+        "circular_linking": _empty_circular_linking(),
     }
 
 

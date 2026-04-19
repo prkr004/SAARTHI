@@ -8,9 +8,9 @@ import { Sidebar } from "../components/layout/Sidebar";
 import { useAuth } from "../hooks/useAuth";
 import { api } from "../lib/api/endpoints";
 import { ApiClientError } from "../lib/api/client";
-import type { ConversationSummary, FrontendMessage, MessageItem } from "../lib/api/types";
+import type { AskMode, ConversationSummary, FrontendMessage, MessageItem } from "../lib/api/types";
 import { toUserErrorMessage } from "../lib/errors";
-import { getWorkspacePreferences } from "../lib/preferences";
+import { getWorkspacePreferences, updateWorkspacePreferences } from "../lib/preferences";
 import { storage } from "../lib/storage";
 
 const STARTER_CHIPS = [
@@ -78,6 +78,10 @@ function toFrontendMessage(message: MessageItem): FrontendMessage {
     content: message.content,
     sources: message.sources ?? [],
   };
+}
+
+function toApiAskMode(responseMode: "fast" | "thinking_grounded"): AskMode {
+  return responseMode === "fast" ? "fast" : "thinking";
 }
 
 export function ChatPage() {
@@ -276,6 +280,13 @@ export function ChatPage() {
     navigate(draftingRoute);
   }
 
+  function handleModeChange(nextMode: AskMode) {
+    const updated = updateWorkspacePreferences({
+      responseMode: nextMode === "fast" ? "fast" : "thinking_grounded",
+    });
+    setPreferences(updated);
+  }
+
   async function handleSubmitQuestion(overrideQuestion?: string) {
     if (!activeConversationId || sending) {
       return;
@@ -314,6 +325,7 @@ export function ChatPage() {
         model_id: selectedModel || undefined,
         top_k: preferences.topK,
         comparison_method: preferences.comparisonMethod,
+        mode: toApiAskMode(preferences.responseMode),
       });
 
       if (stopRequestedRef.current) {
@@ -478,7 +490,9 @@ export function ChatPage() {
                 value={question}
                 disabled={sending || !activeConversationId}
                 isBusy={sending}
+                mode={toApiAskMode(preferences.responseMode)}
                 onChange={setQuestion}
+                onModeChange={handleModeChange}
                 onSubmit={handleSubmitQuestion}
                 context="home"
               />
@@ -570,7 +584,9 @@ export function ChatPage() {
             value={question}
             disabled={!activeConversationId}
             isBusy={sending}
+            mode={toApiAskMode(preferences.responseMode)}
             onChange={setQuestion}
+            onModeChange={handleModeChange}
             onSubmit={handleSubmitQuestion}
             onStop={handleStop}
             context="conversation"

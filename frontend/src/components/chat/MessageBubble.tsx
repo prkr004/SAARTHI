@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 import type { FrontendMessage } from "../../lib/api/types";
 import { SourceList } from "./SourceList";
@@ -6,8 +8,10 @@ import { TemporalPanel } from "./TemporalPanel";
 
 const MODE_LABELS: Record<string, string> = {
   predefined: "Predefined",
+  fast_direct: "Fast",
   qa: "RAG Answer",
   qa_fallback_non_temporal: "QA Fallback",
+  drafting_stub: "Drafting Stub",
   temporal_comparison: "Temporal Compare",
   temporal_fallback: "Temporal Fallback",
   temporal_single_version: "Single Version",
@@ -90,7 +94,13 @@ export function MessageBubble({ message, showTemporal = true, compactSources = f
         </div>
       ) : (
         <div className="message-body">
-          <p className="message-text">{message.content}</p>
+          {isUser ? (
+            <p className="message-text">{message.content}</p>
+          ) : (
+            <div className="message-markdown">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+            </div>
+          )}
         </div>
       )}
 

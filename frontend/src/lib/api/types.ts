@@ -84,12 +84,16 @@ export interface AskRequest {
   top_k: number;
 }
 
+export type AskMode = "fast" | "thinking";
+
 export interface AskTemporalRequest extends AskRequest {
   comparison_method: "difflib" | "llm" | "both";
+  mode?: AskMode;
 }
 
 export interface TemporalPayload {
   intent_detected: boolean;
+  intent_class?: string;
   executed: boolean;
   fallback: boolean;
   fallback_reason?: string;
@@ -102,8 +106,10 @@ export interface TemporalPayload {
 
 export type AssistantMode =
   | "predefined"
+  | "fast_direct"
   | "qa"
   | "qa_fallback_non_temporal"
+  | "drafting_stub"
   | "temporal_comparison"
   | "temporal_fallback"
   | "temporal_single_version";
@@ -119,6 +125,9 @@ export interface AskResponseData {
     top_k: number;
     model_id?: string;
     comparison_method?: string;
+    requested_mode?: AskMode;
+    executed_mode?: AskMode;
+    routing_reason?: string;
     elapsed_ms: number;
   };
 }

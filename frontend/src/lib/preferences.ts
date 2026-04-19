@@ -1,8 +1,10 @@
 export type ComparisonMethod = "difflib" | "llm" | "both";
+export type ResponseModePreference = "fast" | "thinking_grounded";
 
 export interface WorkspacePreferences {
   topK: number;
   comparisonMethod: ComparisonMethod;
+  responseMode: ResponseModePreference;
   compactChat: boolean;
   showTemporalDetails: boolean;
   showSourceSnippets: boolean;
@@ -13,6 +15,7 @@ const STORAGE_KEY = "saarthi_workspace_preferences";
 const DEFAULT_PREFERENCES: WorkspacePreferences = {
   topK: 5,
   comparisonMethod: "both",
+  responseMode: "thinking_grounded",
   compactChat: false,
   showTemporalDetails: true,
   showSourceSnippets: true,
@@ -45,6 +48,10 @@ function parsePreferences(raw: string | null): WorkspacePreferences {
         parsed.comparisonMethod === "difflib" || parsed.comparisonMethod === "llm" || parsed.comparisonMethod === "both"
           ? parsed.comparisonMethod
           : DEFAULT_PREFERENCES.comparisonMethod,
+      responseMode:
+        parsed.responseMode === "fast" || parsed.responseMode === "thinking_grounded"
+          ? parsed.responseMode
+          : DEFAULT_PREFERENCES.responseMode,
       compactChat: Boolean(parsed.compactChat),
       showTemporalDetails:
         typeof parsed.showTemporalDetails === "boolean"

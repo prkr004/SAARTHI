@@ -44,6 +44,7 @@ class AskTemporalRequest(BaseModel):
     model_id: str | None = Field(default=None, max_length=120)
     top_k: int = Field(default=4, ge=1, le=20)
     comparison_method: str = Field(default="both", pattern=r"^(difflib|llm|both)$")
+    mode: str | None = Field(default=None, pattern=r"^(fast|thinking)$")
 
     @field_validator("question", mode="before")
     @classmethod
@@ -64,4 +65,15 @@ class AskTemporalRequest(BaseModel):
             return None
         if not _MODEL_ID_RE.match(cleaned):
             raise ValueError("Unsupported model id format.")
+        return cleaned
+
+    @field_validator("mode", mode="before")
+    @classmethod
+    def normalize_mode(cls, value: object) -> str | None:
+        if value is None:
+            return None
+
+        cleaned = sanitize_text(value, collapse_whitespace=True).lower()
+        if not cleaned:
+            return None
         return cleaned

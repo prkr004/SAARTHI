@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 from datetime import datetime, timezone
 from functools import lru_cache
@@ -13,7 +14,7 @@ from fastapi.responses import JSONResponse
 
 from models_config import AVAILABLE_MODELS, get_model_by_id, get_recommended_model
 from predefined_responses import get_predefined_response
-from query import ask_question, ask_temporal_question, format_source_label
+from query import ask_direct_question, ask_question, ask_temporal_question, format_source_label
 from temporal.intent_detector import triage_query_intent
 
 from backend.app.api.deps import get_current_user
@@ -133,6 +134,43 @@ def _format_sources(sources: list[dict]) -> list[dict]:
     return formatted
 
 
+_FAST_MODE_ESCALATION_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (
+        re.compile(
+            r"\b(compare|comparison|difference|changed|changes|timeline|history|since\s+\d{4}|amend(?:ed|ment)?|revision|revised|version)\b",
+            re.IGNORECASE,
+        ),
+        "comparison_or_timeline_query",
+    ),
+    (
+        re.compile(
+            r"\b(cite|citation|source|reference|section|clause|paragraph|para)\b",
+            re.IGNORECASE,
+        ),
+        "citation_or_clause_request",
+    ),
+    (
+        re.compile(
+            r"\b(circular|notification|master\s+direction|effective\s+date|official\s+text)\b",
+            re.IGNORECASE,
+        ),
+        "document_specific_request",
+    ),
+)
+
+
+def _fast_mode_escalation_reason(question: str, intent_class: str) -> str | None:
+    if intent_class == "timeline_analysis":
+        return "timeline_analysis_requires_grounding"
+    if intent_class == "drafting_request":
+        return "drafting_request_requires_grounding"
+
+    for pattern, reason in _FAST_MODE_ESCALATION_PATTERNS:
+        if pattern.search(question):
+            return reason
+    return None
+
+
 @router.get("/models", response_model=ApiEnvelope)
 def list_models(request: Request, _: dict = Depends(get_current_user)) -> JSONResponse:
     payload = {
@@ -242,6 +280,9 @@ def ask_temporal(request: Request, payload: AskTemporalRequest, _: dict = Depend
 
     try:
         intent_class = triage_query_intent(payload.question)
+        requested_mode = payload.mode or "thinking"
+        executed_mode = requested_mode
+        routing_reason = "user_selected_thinking" if payload.mode == "thinking" else "default_thinking_mode"
 
         predefined = get_predefined_response(payload.question)
         if predefined:
@@ -266,12 +307,67 @@ def ask_temporal(request: Request, payload: AskTemporalRequest, _: dict = Depend
                         "top_k": payload.top_k,
                         "comparison_method": payload.comparison_method,
                         "intent_class": intent_class,
+                        "requested_mode": requested_mode,
+                        "executed_mode": executed_mode,
+                        "routing_reason": "predefined_response",
                         "elapsed_ms": elapsed_ms,
                     },
                 },
             )
 
         model_id = _resolve_model_id(payload.model_id)
+
+        if requested_mode == "fast":
+            escalation_reason = _fast_mode_escalation_reason(payload.question, intent_class)
+            if escalation_reason is None:
+                executed_mode = "fast"
+                routing_reason = "fast_direct_path"
+                model_call_started = time.perf_counter()
+                result = run_with_timeout(
+                    ask_direct_question,
+                    settings.fast_mode_request_timeout_seconds,
+                    question=payload.question,
+                    model_name=model_id,
+                )
+                elapsed_ms = int((time.perf_counter() - started) * 1000)
+                return _success(
+                    request,
+                    {
+                        "mode": "fast_direct",
+                        "answer": result.get("answer", ""),
+                        "sources": [],
+                        "formatted_sources": [],
+                        "circular_linking": result.get("circular_linking", _empty_circular_linking_payload()),
+                        "temporal": {
+                            "intent_detected": False,
+                            "intent_class": intent_class,
+                            "executed": False,
+                            "fallback": False,
+                            "single_version": False,
+                        },
+                        "metadata": {
+                            "predefined": False,
+                            "top_k": payload.top_k,
+                            "model_id": model_id,
+                            "comparison_method": payload.comparison_method,
+                            "intent_class": intent_class,
+                            "requested_mode": requested_mode,
+                            "executed_mode": executed_mode,
+                            "routing_reason": routing_reason,
+                            "elapsed_ms": elapsed_ms,
+                            "timings_ms": {
+                                "model_call": int((time.perf_counter() - model_call_started) * 1000)
+                                if model_call_started
+                                else None,
+                            },
+                        },
+                    },
+                )
+
+            executed_mode = "thinking"
+            routing_reason = escalation_reason
+        elif payload.mode == "thinking":
+            routing_reason = "user_selected_thinking"
 
         if intent_class == "fact_retrieval":
             model_call_started = time.perf_counter()
@@ -306,6 +402,9 @@ def ask_temporal(request: Request, payload: AskTemporalRequest, _: dict = Depend
                         "model_id": model_id,
                         "comparison_method": payload.comparison_method,
                         "intent_class": intent_class,
+                        "requested_mode": requested_mode,
+                        "executed_mode": executed_mode,
+                        "routing_reason": routing_reason,
                         "elapsed_ms": elapsed_ms,
                         "timings_ms": {
                             "model_call": int((time.perf_counter() - model_call_started) * 1000)
@@ -340,6 +439,9 @@ def ask_temporal(request: Request, payload: AskTemporalRequest, _: dict = Depend
                         "model_id": model_id,
                         "comparison_method": payload.comparison_method,
                         "intent_class": intent_class,
+                        "requested_mode": requested_mode,
+                        "executed_mode": executed_mode,
+                        "routing_reason": routing_reason,
                         "elapsed_ms": elapsed_ms,
                         "drafting_stub": True,
                         "timings_ms": {
@@ -404,6 +506,9 @@ def ask_temporal(request: Request, payload: AskTemporalRequest, _: dict = Depend
                     "model_id": model_id,
                     "comparison_method": payload.comparison_method,
                     "intent_class": intent_class,
+                    "requested_mode": requested_mode,
+                    "executed_mode": executed_mode,
+                    "routing_reason": routing_reason,
                     "elapsed_ms": elapsed_ms,
                     "timings_ms": {
                         "model_call": int((time.perf_counter() - model_call_started) * 1000)

@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     session_token_bytes: int = Field(default=48, ge=24, le=128)
     session_max_active_per_user: int = Field(default=5, ge=1, le=20)
     rag_request_timeout_seconds: int = Field(default=90, ge=10, le=300)
+    fast_mode_request_timeout_seconds: int = Field(default=45, ge=5, le=180)
     temporal_request_timeout_seconds: int = Field(default=120, ge=10, le=420)
     readiness_require_vector_index: bool = False
     faiss_index_path: str = "faiss_index/index.faiss"

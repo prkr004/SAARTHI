@@ -62,30 +62,29 @@ describe("question ask flow", () => {
     apiMock.ensureDefaultConversation.mockResolvedValue({ conversation_id: 88 });
     apiMock.addMessage.mockResolvedValue({ message: "saved" });
     apiMock.askTemporal.mockResolvedValue({
-      mode: "temporal_comparison",
-      answer: "Disclosure rules were strengthened in the latest circular.",
+      mode: "fast_direct",
+      answer: "Repo rate is the rate at which RBI lends short-term funds to banks.",
       sources: [],
-      formatted_sources: [
-        {
-          document_name: "RBI Guidelines on Digital Lending",
-          document_link: "https://www.rbi.org.in",
-          page: 4,
-          snippet: "Updated disclosure rules...",
-          metadata: { page: 4 },
-        },
-      ],
+      formatted_sources: [],
       temporal: {
-        intent_detected: true,
-        executed: true,
+        intent_detected: false,
+        executed: false,
         fallback: false,
         single_version: false,
-        document_title: "RBI Guidelines on Digital Lending",
       },
-      metadata: { predefined: false, top_k: 5, model_id: "phi:2.7b", elapsed_ms: 200 },
+      metadata: {
+        predefined: false,
+        top_k: 5,
+        model_id: "phi:2.7b",
+        requested_mode: "fast",
+        executed_mode: "fast",
+        routing_reason: "fast_direct_path",
+        elapsed_ms: 200,
+      },
     });
   });
 
-  it("sends a question and renders assistant response with sources", async () => {
+  it("sends a question with selected mode and renders fast mode badge", async () => {
     const user = userEvent.setup();
     render(
       <MemoryRouter>
@@ -94,21 +93,28 @@ describe("question ask flow", () => {
     );
 
     await screen.findByRole("heading", { name: "SAARTHI" });
+    const modeSelect = screen.getByLabelText("Response mode");
+    expect(modeSelect).toHaveValue("thinking");
+    await user.selectOptions(modeSelect, "fast");
+    expect(modeSelect).toHaveValue("fast");
+
     await user.type(
       screen.getByPlaceholderText(/Ask SAARTHI about RBI regulations/i),
-      "How has digital lending changed?",
+      "What is repo rate?",
     );
     await user.click(screen.getByRole("button", { name: "Send message" }));
 
-    await screen.findByText("Disclosure rules were strengthened in the latest circular.");
-    expect(screen.getByText("Temporal Compare")).toBeInTheDocument();
-    await user.click(screen.getByText("Sources"));
-    expect(screen.getByRole("link", { name: "RBI Guidelines on Digital Lending" })).toBeInTheDocument();
-    expect(screen.getByText("p. 4")).toBeInTheDocument();
+    await screen.findByText("Repo rate is the rate at which RBI lends short-term funds to banks.");
+    const assistantModeTag = document.querySelector(".message--assistant .mode-tag");
+    expect(assistantModeTag).not.toBeNull();
+    expect(assistantModeTag).toHaveTextContent("Fast");
 
     await waitFor(() => {
       expect(apiMock.addMessage).toHaveBeenCalledTimes(2);
       expect(apiMock.askTemporal).toHaveBeenCalledTimes(1);
+      expect(apiMock.askTemporal).toHaveBeenCalledWith(
+        expect.objectContaining({ mode: "fast" }),
+      );
     });
   });
 });

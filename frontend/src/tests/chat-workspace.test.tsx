@@ -111,4 +111,43 @@ describe("chat workspace", () => {
       expect(apiMock.deleteConversation).toHaveBeenCalled();
     });
   });
+
+  it("updates composer response mode and includes it in ask payload", async () => {
+    const user = userEvent.setup();
+    apiMock.askTemporal.mockResolvedValueOnce({
+      mode: "fast_direct",
+      answer: "quick",
+      sources: [],
+      formatted_sources: [],
+      metadata: { predefined: false, top_k: 5, elapsed_ms: 5 },
+    });
+
+    render(
+      <MemoryRouter>
+        <ChatPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole("heading", { name: "SAARTHI" });
+
+    const modeSelect = screen.getByLabelText("Response mode");
+    expect(modeSelect).toHaveValue("thinking");
+
+    await user.selectOptions(modeSelect, "fast");
+    expect(modeSelect).toHaveValue("fast");
+
+    await user.type(screen.getByPlaceholderText(/Ask SAARTHI about RBI regulations/i), "Quick test");
+    await user.click(screen.getByRole("button", { name: "Send message" }));
+
+    await screen.findByText("quick");
+    const assistantModeTag = document.querySelector(".message--assistant .mode-tag");
+    expect(assistantModeTag).not.toBeNull();
+    expect(assistantModeTag).toHaveTextContent("Fast");
+
+    await waitFor(() => {
+      expect(apiMock.askTemporal).toHaveBeenCalledWith(
+        expect.objectContaining({ mode: "fast" }),
+      );
+    });
+  });
 });
