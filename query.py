@@ -42,6 +42,23 @@ DEFAULT_HYBRID_KEYWORD_MIN_TOKEN_LENGTH = 3
 
 _TOKEN_RE = re.compile(r"[A-Za-z0-9]+")
 
+
+def _default_index_path() -> str:
+    """Resolve the FAISS directory path used by backend runtime settings.
+
+    Falls back to the historical ``faiss_index`` directory when settings are
+    unavailable (for standalone scripts/tests).
+    """
+    try:
+        from backend.app.core.config import get_settings
+
+        configured = Path(get_settings().faiss_index_path)
+        if configured.suffix.lower() == ".faiss":
+            return str(configured.parent)
+        return str(configured)
+    except Exception:
+        return INDEX_PATH
+
 # ── Known-document registry ─────────────────────────────────────────────
 # Maps filename substrings (lower-cased) to a friendly name and an
 # official URL where the public can read the original circular.
@@ -198,14 +215,16 @@ def get_embeddings():
 
 
 @lru_cache(maxsize=1)
-def load_vectorstore(index_path: str = INDEX_PATH) -> FAISS:
-    if not Path(index_path).exists():
+def load_vectorstore(index_path: str | None = None) -> FAISS:
+    resolved_index_path = index_path or _default_index_path()
+
+    if not Path(resolved_index_path).exists():
         raise FileNotFoundError(
-            f"FAISS index not found at '{index_path}'. "
+            f"FAISS index not found at '{resolved_index_path}'. "
             "Run `python build_vectorstore.py` to create it."
         )
     return FAISS.load_local(
-        index_path,
+        resolved_index_path,
         get_embeddings(),
         allow_dangerous_deserialization=True,
     )

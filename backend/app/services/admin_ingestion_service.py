@@ -81,11 +81,14 @@ def _infer_metadata_from_file(path: Path) -> dict:
 
 def _load_or_initialize_store(index_directory: Path, embeddings: HuggingFaceEmbeddings, first_chunks: list):
     if index_directory.exists():
-        return FAISS.load_local(
+        vectorstore = FAISS.load_local(
             str(index_directory),
             embeddings,
             allow_dangerous_deserialization=True,
         )
+        # Always append the first file's chunks even when loading an existing index.
+        vectorstore.add_documents(first_chunks)
+        return vectorstore
     return FAISS.from_documents(first_chunks, embeddings)
 
 
