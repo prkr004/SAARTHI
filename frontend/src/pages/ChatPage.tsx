@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import { MessageBubble } from "../components/chat/MessageBubble";
@@ -13,42 +13,54 @@ import { toUserErrorMessage } from "../lib/errors";
 import { getWorkspacePreferences } from "../lib/preferences";
 import { storage } from "../lib/storage";
 
-const PROMPT_GROUPS = [
+const STARTER_CHIPS = [
   {
-    title: "Digital Lending",
-    prompts: [
-      "Summarize key obligations for digital lending apps under RBI guidelines.",
-      "What disclosures are mandatory before loan disbursal in digital lending?",
-      "What restrictions apply to lending service providers in RBI guidance?",
-      "List compliance checkpoints for first-time digital loan onboarding.",
-    ],
+    label: "Digital Lending Obligations",
+    full: "Summarize key obligations for digital lending apps under RBI guidelines.",
   },
   {
-    title: "KYC & Due Diligence",
-    prompts: [
-      "Explain customer due diligence steps under the RBI KYC Master Direction.",
-      "When is enhanced due diligence required for customer onboarding?",
-      "What are KYC record retention requirements and timelines?",
-      "What red flags should trigger periodic KYC review escalation?",
-    ],
+    label: "Pre-Disbursal Disclosures",
+    full: "What disclosures are mandatory before loan disbursal in digital lending?",
   },
   {
-    title: "Temporal Comparison",
-    prompts: [
-      "How did the latest digital lending circular change borrower consent requirements?",
-      "Compare 2022 vs latest guidance on cooling-off period obligations.",
-      "What changed in grievance redressal expectations across versions?",
-      "Which clauses were tightened in the latest circular compared to previous one?",
-    ],
+    label: "LSP Restrictions",
+    full: "What restrictions apply to lending service providers in RBI guidance?",
   },
   {
-    title: "Data Protection",
-    prompts: [
-      "How does DPDP 2023 intersect with RBI digital lending compliance?",
-      "What data minimization practices are expected in lending workflows?",
-      "What should be included in consent notices for personal data processing?",
-      "What are safe defaults for storing customer KYC and lending records?",
-    ],
+    label: "First-Time Loan Onboarding",
+    full: "List compliance checkpoints for first-time digital loan onboarding.",
+  },
+  {
+    label: "KYC Due Diligence Steps",
+    full: "Explain customer due diligence steps under the RBI KYC Master Direction.",
+  },
+  {
+    label: "Enhanced Due Diligence",
+    full: "When is enhanced due diligence required for customer onboarding?",
+  },
+  {
+    label: "KYC Record Retention",
+    full: "What are KYC record retention requirements and timelines?",
+  },
+  {
+    label: "Borrower Consent Changes",
+    full: "How did the latest digital lending circular change borrower consent requirements?",
+  },
+  {
+    label: "2022 vs Latest Cooling-Off",
+    full: "Compare 2022 vs latest guidance on cooling-off period obligations.",
+  },
+  {
+    label: "Grievance Redressal Changes",
+    full: "What changed in grievance redressal expectations across versions?",
+  },
+  {
+    label: "DPDP & RBI Intersection",
+    full: "How does DPDP 2023 intersect with RBI digital lending compliance?",
+  },
+  {
+    label: "Data Minimization",
+    full: "What data minimization practices are expected in lending workflows?",
   },
 ] as const;
 
@@ -76,6 +88,10 @@ export function ChatPage() {
   const loginRoute = isAdminPortal ? "/admin/login" : "/login";
   const draftingRoute = isAdminPortal ? "/admin/drafting" : "/drafting";
   const settingsRoute = isAdminPortal ? "/admin/dashboard" : "/settings";
+  const profileRoute = isAdminPortal ? "/admin/profile" : "/profile";
+  const userScope = isAdminPortal ? "admin" : "employee";
+  const storedDisplayName = storage.getDisplayName(userScope);
+  const userDisplayName = storedDisplayName?.trim() || user?.full_name || "Employee";
 
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null);
@@ -89,17 +105,16 @@ export function ChatPage() {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [promptLibraryOpen, setPromptLibraryOpen] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const scrollAnchorRef = useRef<HTMLDivElement | null>(null);
+  const stopRequestedRef = useRef(false);
 
   const hasMessages = messages.length > 0;
   const showHomeState = !loadingMessages && !hasMessages;
-  const featuredPrompts = useMemo(
-    () => PROMPT_GROUPS.flatMap((group) => group.prompts).slice(0, 4),
-    [],
-  );
 
   useEffect(() => {
     scrollAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -261,12 +276,12 @@ export function ChatPage() {
     navigate(draftingRoute);
   }
 
-  async function handleSubmitQuestion() {
+  async function handleSubmitQuestion(overrideQuestion?: string) {
     if (!activeConversationId || sending) {
       return;
     }
 
-    const trimmedQuestion = question.trim();
+    const trimmedQuestion = (overrideQuestion ?? question).trim();
     if (!trimmedQuestion) {
       return;
     }
@@ -274,6 +289,7 @@ export function ChatPage() {
     setError(null);
     setNotice(null);
     setQuestion("");
+    stopRequestedRef.current = false;
 
     const userMessage: FrontendMessage = {
       id: createMessageId(),
@@ -300,6 +316,10 @@ export function ChatPage() {
         comparison_method: preferences.comparisonMethod,
       });
 
+      if (stopRequestedRef.current) {
+        return;
+      }
+
       const assistantSources = response.formatted_sources.length > 0 ? response.formatted_sources : response.sources;
       const assistantMessage: FrontendMessage = {
         id: createMessageId(),
@@ -321,6 +341,10 @@ export function ChatPage() {
       });
       await hydrateConversations(activeConversationId);
     } catch (sendError) {
+      if (stopRequestedRef.current) {
+        return;
+      }
+
       const message = toUserErrorMessage(sendError);
       setMessages((previous) => [
         ...previous.map((entry) => (entry.id === userMessage.id ? { ...entry, pending: false } : entry)),
@@ -343,6 +367,28 @@ export function ChatPage() {
     }
   }
 
+  function handleStop() {
+    stopRequestedRef.current = true;
+    setSending(false);
+    setMessages((previous) => previous.filter((message) => !message.pending));
+  }
+
+  async function handleEditMessage(messageId: string, newContent: string) {
+    if (!newContent.trim()) {
+      return;
+    }
+
+    setMessages((previous) => {
+      const index = previous.findIndex((message) => message.id === messageId);
+      if (index === -1) {
+        return previous;
+      }
+      return previous.slice(0, index);
+    });
+
+    await handleSubmitQuestion(newContent);
+  }
+
   async function handleLogout() {
     await logout();
     navigate(loginRoute, { replace: true });
@@ -351,12 +397,13 @@ export function ChatPage() {
   return (
     <AppShell
       sidebarOpen={sidebarOpen}
+      sidebarCollapsed={sidebarCollapsed}
       onToggleSidebar={() => setSidebarOpen((current) => !current)}
       onCloseSidebar={() => setSidebarOpen(false)}
+      onToggleCollapse={() => setSidebarCollapsed((current) => !current)}
       sidebar={
         <Sidebar
-          userName={user?.full_name ?? "Employee"}
-          employeeId={user?.employee_id ?? "-"}
+          userName={userDisplayName}
           conversations={conversations}
           activeConversationId={activeConversationId}
           loading={loadingWorkspace}
@@ -372,27 +419,19 @@ export function ChatPage() {
             setSidebarOpen(false);
             navigate(settingsRoute);
           }}
+          onOpenProfile={() => {
+            setSidebarOpen(false);
+            navigate(profileRoute);
+          }}
           onLogout={handleLogout}
         />
       }
     >
-      <section className={`workspace-header ${showHomeState ? "workspace-header--calm" : ""}`}>
-        <div className="workspace-header__top">
-          <div>
-            <h1>SAARTHI Chat Workspace</h1>
-            <p>Source-grounded compliance guidance with focused, conversational navigation.</p>
-          </div>
-        </div>
-
-        {!showHomeState ? (
-          <div className="workspace-kpis" aria-label="Current session profile">
-            <span className="stat-chip">Top-K {preferences.topK}</span>
-            <span className="stat-chip">Compare: {preferences.comparisonMethod}</span>
-            <span className="stat-chip">Model: {selectedModel || "Auto"}</span>
-            <span className="stat-chip">Mode: {preferences.compactChat ? "Compact" : "Comfort"}</span>
-          </div>
-        ) : null}
-      </section>
+      {!showHomeState ? (
+        <header className="workspace-header workspace-header--minimal">
+          <h1>SAARTHI</h1>
+        </header>
+      ) : null}
 
       {error ? (
         <p className="notice notice--error" role="alert">
@@ -418,7 +457,17 @@ export function ChatPage() {
 
         {showHomeState ? (
           <article className="home-stage" aria-label="SAARTHI home">
-            <p className="home-stage__eyebrow">Namaste, {user?.full_name ?? "there"}</p>
+            <div className="home-stage-topbar">
+              <button
+                type="button"
+                className="prompt-library-trigger"
+                onClick={() => setPromptLibraryOpen(true)}
+              >
+                Prompt Library
+              </button>
+            </div>
+
+            <p className="home-stage__eyebrow">Namaste, {userDisplayName || "there"}</p>
             <h2>What should SAARTHI help you review today?</h2>
             <p className="home-stage__subtext">
               Ask about RBI circulars, KYC controls, digital lending obligations, or temporal clause changes.
@@ -438,34 +487,14 @@ export function ChatPage() {
             <section className="home-prompts" aria-label="Suggested prompts">
               <h3>Suggested starters</h3>
               <ul className="prompt-chips">
-                {featuredPrompts.map((prompt) => (
-                  <li key={prompt}>
-                    <button type="button" className="prompt-chip" onClick={() => setQuestion(prompt)}>
-                      {prompt}
+                {STARTER_CHIPS.slice(0, 4).map((chip) => (
+                  <li key={chip.label}>
+                    <button type="button" className="prompt-chip" onClick={() => void handleSubmitQuestion(chip.full)}>
+                      {chip.label}
                     </button>
                   </li>
                 ))}
               </ul>
-
-              <details className="prompt-library">
-                <summary>Browse full prompt library</summary>
-                <div className="prompt-grid">
-                  {PROMPT_GROUPS.map((group) => (
-                    <section key={group.title} className="prompt-group">
-                      <h3>{group.title}</h3>
-                      <ul>
-                        {group.prompts.map((prompt) => (
-                          <li key={prompt}>
-                            <button type="button" className="prompt-chip" onClick={() => setQuestion(prompt)}>
-                              {prompt}
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    </section>
-                  ))}
-                </div>
-              </details>
             </section>
           </article>
         ) : null}
@@ -478,6 +507,7 @@ export function ChatPage() {
                 message={message}
                 showTemporal={preferences.showTemporalDetails}
                 compactSources={!preferences.showSourceSnippets}
+                onEdit={handleEditMessage}
               />
             ))}
 
@@ -505,22 +535,54 @@ export function ChatPage() {
         <div ref={scrollAnchorRef} />
       </section>
 
+      {promptLibraryOpen ? (
+        <div className="prompt-library-overlay" onClick={() => setPromptLibraryOpen(false)}>
+          <div className="prompt-library-panel" onClick={(event) => event.stopPropagation()}>
+            <div className="prompt-library-header">
+              <h3>Prompt Library</h3>
+              <button type="button" className="prompt-library-close" onClick={() => setPromptLibraryOpen(false)}>
+                x
+              </button>
+            </div>
+            <div className="prompt-library-scroll">
+              {STARTER_CHIPS.map((chip) => (
+                <button
+                  key={chip.label}
+                  type="button"
+                  className="prompt-library-item"
+                  onClick={() => {
+                    setPromptLibraryOpen(false);
+                    void handleSubmitQuestion(chip.full);
+                  }}
+                >
+                  <span className="prompt-library-item__label">{chip.label}</span>
+                  <span className="prompt-library-item__full">{chip.full}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       {!showHomeState ? (
         <div className="composer-dock composer-dock--conversation">
           <MessageComposer
             value={question}
-            disabled={sending || !activeConversationId}
+            disabled={!activeConversationId}
             isBusy={sending}
             onChange={setQuestion}
             onSubmit={handleSubmitQuestion}
+            onStop={handleStop}
             context="conversation"
           />
         </div>
       ) : null}
 
-      <footer className="workspace-footer">
-        For informational support only. Validate conclusions against official RBI circulars and qualified compliance advice.
-      </footer>
+      {!showHomeState ? (
+        <footer className="workspace-footer">
+          For informational support only. Validate conclusions against official RBI circulars and qualified compliance advice.
+        </footer>
+      ) : null}
     </AppShell>
   );
 }

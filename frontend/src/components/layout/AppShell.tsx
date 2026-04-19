@@ -4,16 +4,20 @@ interface AppShellProps {
   sidebar: React.ReactNode;
   children: React.ReactNode;
   sidebarOpen: boolean;
+  sidebarCollapsed?: boolean;
   onToggleSidebar: () => void;
   onCloseSidebar: () => void;
+  onToggleCollapse?: () => void;
 }
 
 export function AppShell({
   sidebar,
   children,
   sidebarOpen,
+  sidebarCollapsed = false,
   onToggleSidebar,
   onCloseSidebar,
+  onToggleCollapse,
 }: AppShellProps) {
   useEffect(() => {
     if (!sidebarOpen) {
@@ -48,7 +52,7 @@ export function AppShell({
   }, [sidebarOpen]);
 
   return (
-    <div className="shell">
+    <div className={`shell ${sidebarCollapsed ? "shell--sidebar-collapsed" : ""}`}>
       <button
         className="mobile-sidebar-toggle"
         type="button"
@@ -66,6 +70,17 @@ export function AppShell({
       <aside id="chat-sidebar" className={`shell-sidebar ${sidebarOpen ? "is-open" : ""}`} aria-label="Chat sidebar">
         {sidebar}
       </aside>
+
+      {onToggleCollapse ? (
+        <button
+          type="button"
+          className="sidebar-collapse-toggle"
+          onClick={onToggleCollapse}
+          aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+        >
+          {sidebarCollapsed ? "›" : "‹"}
+        </button>
+      ) : null}
 
       <button
         className={`sidebar-backdrop ${sidebarOpen ? "is-open" : ""}`}

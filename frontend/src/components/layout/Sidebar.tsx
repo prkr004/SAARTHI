@@ -1,11 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { ConversationSummary } from "../../lib/api/types";
-import { useTheme } from "../../hooks/useTheme";
 
 interface SidebarProps {
   userName: string;
-  employeeId: string;
+  employeeId?: string;
   conversations: ConversationSummary[];
   activeConversationId: number | null;
   loading: boolean;
@@ -15,12 +14,12 @@ interface SidebarProps {
   onDeleteConversation: (conversationId: number) => void;
   onOpenDrafting?: () => void;
   onOpenSettings?: () => void;
+  onOpenProfile?: () => void;
   onLogout: () => void;
 }
 
 export function Sidebar({
   userName,
-  employeeId,
   conversations,
   activeConversationId,
   loading,
@@ -30,10 +29,12 @@ export function Sidebar({
   onDeleteConversation,
   onOpenDrafting,
   onOpenSettings,
+  onOpenProfile,
   onLogout,
 }: SidebarProps) {
-  const { theme, toggleTheme } = useTheme();
   const [searchTerm, setSearchTerm] = useState("");
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement | null>(null);
 
   const normalizedSearch = searchTerm.trim().toLowerCase();
   const filteredConversations = useMemo(() => {
@@ -49,6 +50,25 @@ export function Sidebar({
 
   const hasSearch = normalizedSearch.length > 0;
 
+  useEffect(() => {
+    if (!profileMenuOpen) {
+      return;
+    }
+
+    const handleDocumentClick = (event: MouseEvent) => {
+      if (!profileMenuRef.current) {
+        return;
+      }
+
+      if (event.target instanceof Node && !profileMenuRef.current.contains(event.target)) {
+        setProfileMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("click", handleDocumentClick);
+    return () => document.removeEventListener("click", handleDocumentClick);
+  }, [profileMenuOpen]);
+
   return (
     <div className="sidebar">
       <header className="sidebar-brand" aria-label="Workspace navigation">
@@ -60,9 +80,6 @@ export function Sidebar({
             <h2>SAARTHI</h2>
             <p>Regulatory Workspace</p>
           </div>
-          <button type="button" className="theme-toggle" onClick={toggleTheme} aria-label="Toggle color theme">
-            {theme === "dark" ? "Light" : "Dark"}
-          </button>
         </div>
 
         <button
@@ -75,6 +92,16 @@ export function Sidebar({
           </span>
           <span>New chat</span>
         </button>
+
+        {onOpenDrafting ? (
+          <button
+            type="button"
+            className="button button--ghost button--compact sidebar-draft-btn sidebar-touch-target"
+            onClick={onOpenDrafting}
+          >
+            Draft Document
+          </button>
+        ) : null}
       </header>
 
       <section className="sidebar-section" aria-label="Conversations">
@@ -162,33 +189,54 @@ export function Sidebar({
       </section>
 
       <footer className="sidebar-footer">
-        <div className="sidebar-account">
-          <p className="sidebar-account__name">{userName}</p>
-          <p className="sidebar-account__id">Employee ID: {employeeId}</p>
-        </div>
-
-        <div className="sidebar-actions">
-          {onOpenDrafting ? (
-            <button
-              type="button"
-              className="button button--ghost button--compact sidebar-touch-target"
-              onClick={onOpenDrafting}
-            >
-              Draft document
-            </button>
-          ) : null}
-          {onOpenSettings ? (
-            <button
-              type="button"
-              className="button button--ghost button--compact sidebar-touch-target"
-              onClick={onOpenSettings}
-            >
-              Settings
-            </button>
-          ) : null}
-          <button type="button" className="button button--ghost button--compact sidebar-touch-target" onClick={onLogout}>
-            Logout
+        <div className="sidebar-profile-menu" ref={profileMenuRef}>
+          <button
+            type="button"
+            className="sidebar-profile-btn"
+            onClick={() => setProfileMenuOpen((prev) => !prev)}
+            aria-expanded={profileMenuOpen}
+            aria-haspopup="true"
+          >
+            <span className="sidebar-profile-avatar">{userName.charAt(0).toUpperCase()}</span>
+            <span className="sidebar-profile-name">{userName}</span>
+            <span className="sidebar-profile-chevron">...</span>
           </button>
+
+          {profileMenuOpen ? (
+            <div className="sidebar-profile-dropdown">
+              <button
+                type="button"
+                className="profile-menu-item"
+                onClick={() => {
+                  setProfileMenuOpen(false);
+                  onOpenSettings?.();
+                }}
+              >
+                Settings
+              </button>
+              <button
+                type="button"
+                className="profile-menu-item"
+                onClick={() => {
+                  setProfileMenuOpen(false);
+                  onOpenProfile?.();
+                }}
+              >
+                My Profile
+              </button>
+              <div className="profile-menu-divider" />
+              <button
+                type="button"
+                className="profile-menu-item profile-menu-item--danger"
+                onClick={() => {
+                  setProfileMenuOpen(false);
+                  onLogout();
+                }}
+              >
+                Log out
+              </button>
+            </div>
+          ) : null}
         </div>
       </footer>
     </div>

@@ -6,6 +6,7 @@ interface MessageComposerProps {
   isBusy?: boolean;
   onChange: (value: string) => void;
   onSubmit: () => void;
+  onStop?: () => void;
   context?: "home" | "conversation";
 }
 
@@ -15,6 +16,7 @@ export function MessageComposer({
   isBusy = false,
   onChange,
   onSubmit,
+  onStop,
   context = "conversation",
 }: MessageComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -59,7 +61,7 @@ export function MessageComposer({
     }
   }
 
-  const submitDisabled = disabled || value.trim().length === 0;
+  const submitDisabled = disabled || isBusy || value.trim().length === 0;
   const inputHintId = context === "home" ? "chat-input-hint-home" : "chat-input-hint-conversation";
   const inputBusyId = context === "home" ? "chat-input-busy-home" : "chat-input-busy-conversation";
   const describedBy = isBusy ? `${inputHintId} ${inputBusyId}` : inputHintId;
@@ -79,10 +81,6 @@ export function MessageComposer({
       </label>
 
       <div className="composer-inner">
-        <span className="composer-leading" aria-hidden="true">
-          S
-        </span>
-
         <textarea
           ref={textareaRef}
           id="chat-input"
@@ -98,17 +96,28 @@ export function MessageComposer({
           aria-describedby={describedBy}
         />
 
-        <button
-          type="submit"
-          className="button button--primary button--compact composer-send"
-          disabled={submitDisabled}
-          aria-label={isBusy ? "SAARTHI is generating a response" : "Send message"}
-        >
-          <span className="composer-send__label">{isBusy ? "Thinking" : "Send"}</span>
-          <span className="composer-send__icon" aria-hidden="true">
-            {isBusy ? ".." : "->"}
-          </span>
-        </button>
+        {isBusy && onStop ? (
+          <button
+            type="button"
+            className="button button--compact composer-stop"
+            onClick={onStop}
+            aria-label="Stop generating response"
+          >
+            Stop
+          </button>
+        ) : (
+          <button
+            type="submit"
+            className="button button--primary button--compact composer-send"
+            disabled={submitDisabled}
+            aria-label="Send message"
+          >
+            <span className="composer-send__label">Send</span>
+            <span className="composer-send__icon" aria-hidden="true">
+              -&gt;
+            </span>
+          </button>
+        )}
       </div>
 
       <div className="composer-row" id={inputHintId}>

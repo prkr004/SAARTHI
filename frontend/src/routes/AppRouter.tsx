@@ -9,6 +9,7 @@ import { ChatPage } from "../pages/ChatPage.tsx";
 import { DocumentGeneratorPage } from "../pages/DocumentGeneratorPage.tsx";
 import { LoginPage } from "../pages/LoginPage.tsx";
 import { NotFoundPage } from "../pages/NotFoundPage.tsx";
+import { ProfilePage } from "../pages/ProfilePage.tsx";
 import { RegisterPage } from "../pages/RegisterPage.tsx";
 import { SettingsPage } from "../pages/SettingsPage.tsx";
 import { AdminRoute } from "./AdminRoute";
@@ -60,6 +61,7 @@ export function AppRouter() {
         <Route path="/" element={<ChatPage />} />
         <Route path="/drafting" element={<DocumentGeneratorPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
       </Route>
       <Route element={<AdminRoute />}>
         <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
@@ -68,6 +70,7 @@ export function AppRouter() {
         <Route path="/admin/uploads" element={<AdminUploadDocumentsPage />} />
         <Route path="/admin/chat" element={<ChatPage />} />
         <Route path="/admin/drafting" element={<DocumentGeneratorPage />} />
+        <Route path="/admin/profile" element={<ProfilePage />} />
       </Route>
       <Route
         path="/login"

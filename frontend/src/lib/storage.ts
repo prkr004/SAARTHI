@@ -5,6 +5,8 @@ const STORAGE_KEYS = {
   adminToken: "saarthi_admin_token",
   legacyToken: "saarthi_token",
   selectedModel: "saarthi_selected_model",
+  employeeDisplayName: "saarthi_employee_display_name",
+  adminDisplayName: "saarthi_admin_display_name",
 } as const;
 
 function resolveScope(pathname: string): AuthScope {
@@ -13,6 +15,10 @@ function resolveScope(pathname: string): AuthScope {
 
 function keyForScope(scope: AuthScope): string {
   return scope === "admin" ? STORAGE_KEYS.adminToken : STORAGE_KEYS.employeeToken;
+}
+
+function displayNameKeyForScope(scope: AuthScope): string {
+  return scope === "admin" ? STORAGE_KEYS.adminDisplayName : STORAGE_KEYS.employeeDisplayName;
 }
 
 function getSafeStorage(): Storage | null {
@@ -77,5 +83,18 @@ export const storage = {
   },
   setSelectedModel(modelId: string): void {
     getSafeStorage()?.setItem(STORAGE_KEYS.selectedModel, modelId);
+  },
+  getDisplayName(scope: AuthScope = "employee"): string | null {
+    return getSafeStorage()?.getItem(displayNameKeyForScope(scope)) ?? null;
+  },
+  setDisplayName(displayName: string, scope: AuthScope = "employee"): void {
+    const store = getSafeStorage();
+    if (!store) {
+      return;
+    }
+    store.setItem(displayNameKeyForScope(scope), displayName);
+  },
+  clearDisplayName(scope: AuthScope = "employee"): void {
+    getSafeStorage()?.removeItem(displayNameKeyForScope(scope));
   },
 };

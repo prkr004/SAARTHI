@@ -8,6 +8,7 @@ import { ApiClientError } from "../lib/api/client";
 import { api } from "../lib/api/endpoints";
 import type { ConversationSummary, GenerateDocumentRequest } from "../lib/api/types";
 import { toUserErrorMessage } from "../lib/errors";
+import { storage } from "../lib/storage";
 
 type DocumentType = GenerateDocumentRequest["document_type"];
 
@@ -43,11 +44,16 @@ export function DocumentGeneratorPage() {
   const chatRoute = isAdminPortal ? "/admin/chat" : "/";
   const draftingRoute = isAdminPortal ? "/admin/drafting" : "/drafting";
   const settingsRoute = isAdminPortal ? "/admin/dashboard" : "/settings";
+  const profileRoute = isAdminPortal ? "/admin/profile" : "/profile";
   const loginRoute = isAdminPortal ? "/admin/login" : "/login";
+  const userScope = isAdminPortal ? "admin" : "employee";
+  const storedDisplayName = storage.getDisplayName(userScope);
+  const userDisplayName = storedDisplayName?.trim() || user?.full_name || "Employee";
 
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [loadingWorkspace, setLoadingWorkspace] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const [documentType, setDocumentType] = useState<DocumentType>("circular");
   const [query, setQuery] = useState("");
@@ -162,7 +168,7 @@ export function DocumentGeneratorPage() {
     <AppShell
       sidebar={
         <Sidebar
-          userName={user?.full_name ?? "Employee"}
+          userName={userDisplayName}
           employeeId={user?.employee_id ?? "-"}
           conversations={conversations}
           activeConversationId={null}
@@ -173,14 +179,17 @@ export function DocumentGeneratorPage() {
           onDeleteConversation={() => navigate(chatRoute)}
           onOpenDrafting={() => navigate(draftingRoute)}
           onOpenSettings={() => navigate(settingsRoute)}
+          onOpenProfile={() => navigate(profileRoute)}
           onLogout={() => {
             void logout().then(() => navigate(loginRoute, { replace: true }));
           }}
         />
       }
       sidebarOpen={sidebarOpen}
+      sidebarCollapsed={sidebarCollapsed}
       onToggleSidebar={() => setSidebarOpen((current) => !current)}
       onCloseSidebar={() => setSidebarOpen(false)}
+      onToggleCollapse={() => setSidebarCollapsed((current) => !current)}
     >
       <div className="drafting-stage">
         <header className="drafting-header">
