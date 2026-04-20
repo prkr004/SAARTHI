@@ -47,6 +47,12 @@ class Settings(BaseSettings):
     admin_action_rate_limit_window_seconds: int = Field(default=60, ge=1, le=3600)
     admin_action_rate_limit_max_requests: int = Field(default=60, ge=1, le=10000)
 
+    document_summary_worker_enabled: bool = True
+    document_summary_poll_interval_seconds: int = Field(default=30, ge=5, le=3600)
+    document_summary_batch_size: int = Field(default=20, ge=1, le=500)
+    document_summary_retry_after_seconds: int = Field(default=120, ge=0, le=86400)
+    document_summary_retry_failed_enabled: bool = True
+
     notification_provider: Literal["noop", "console", "smtp", "gmail"] = "console"
     notification_from_email: str = "no-reply@saarthi.local"
     notification_smtp_host: str = "localhost"

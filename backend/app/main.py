@@ -18,6 +18,10 @@ from backend.app.api.routers import admin, auth, chat, drafting, health, rag
 from backend.app.core.config import get_settings
 from backend.app.core.logging_config import configure_logging
 from backend.app.services.auth_service import initialize_session_store, purge_expired_sessions
+from backend.app.services.document_summary_service import (
+    start_document_summary_worker,
+    stop_document_summary_worker,
+)
 
 settings = get_settings()
 configure_logging(settings.log_level, settings.log_format)
@@ -30,6 +34,7 @@ async def lifespan(_: FastAPI):
     bootstrap_result = bootstrap_admin_user()
     initialize_session_store()
     purged = purge_expired_sessions()
+    summary_worker_started = start_document_summary_worker()
 
     logger.info(
         "Startup complete",
@@ -38,9 +43,19 @@ async def lifespan(_: FastAPI):
             "admin_bootstrap": bootstrap_result.message,
             "purged_sessions": purged,
             "cors_origins": settings.cors_origins,
+            "summary_worker_started": summary_worker_started,
         },
     )
-    yield
+    try:
+        yield
+    finally:
+        summary_worker_stopped = stop_document_summary_worker()
+        logger.info(
+            "Shutdown complete",
+            extra={
+                "summary_worker_stopped": summary_worker_stopped,
+            },
+        )
 
 
 def create_app() -> FastAPI:

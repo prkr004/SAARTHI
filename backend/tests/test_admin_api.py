@@ -167,6 +167,12 @@ def test_admin_endpoints_reject_non_admin_users(client: TestClient):
     jobs_response = client.get("/api/v1/admin/ingestion/jobs", headers=user_headers)
     assert jobs_response.status_code == 403
 
+    documents_response = client.get("/api/v1/admin/documents", headers=user_headers)
+    assert documents_response.status_code == 403
+
+    summary_jobs_response = client.get("/api/v1/admin/summary/jobs", headers=user_headers)
+    assert summary_jobs_response.status_code == 403
+
 
 def test_review_endpoints_surface_notification_warnings(client: TestClient, monkeypatch):
     admin_headers = _admin_headers(client)
@@ -321,3 +327,263 @@ def test_ingestion_job_lifecycle_transitions(client: TestClient, monkeypatch, tm
     assert list_response.status_code == 200
     listed_ids = {job["job_id"] for job in list_response.json()["jobs"]}
     assert job_id in listed_ids
+
+
+def test_backfill_job_lifecycle_transitions(client: TestClient, monkeypatch):
+    admin_headers = _admin_headers(client)
+
+    def fake_start_document_backfill_job(*, job_id: str, manifest_path: str | None = None):
+        assert manifest_path
+        chat_store.update_backfill_job(
+            job_id,
+            status=chat_store.BACKFILL_STATUS_RUNNING,
+            total_documents=3,
+            processed_documents=1,
+            discovered_chunks=7,
+            progress_percent=34,
+            started_at="2026-04-20T00:00:00+00:00",
+            current_document_key="doc_1",
+        )
+        chat_store.update_backfill_job(
+            job_id,
+            status=chat_store.BACKFILL_STATUS_COMPLETED,
+            total_documents=3,
+            processed_documents=3,
+            discovered_chunks=7,
+            progress_percent=100,
+            completed_at="2026-04-20T00:00:10+00:00",
+            current_document_key=None,
+        )
+
+    monkeypatch.setattr(
+        "backend.app.api.routers.admin.start_document_backfill_job",
+        fake_start_document_backfill_job,
+    )
+
+    create_response = client.post(
+        "/api/v1/admin/backfill/jobs",
+        headers=admin_headers,
+        json={},
+    )
+    assert create_response.status_code == 202
+    payload = create_response.json()
+    job_id = payload["job"]["job_id"]
+
+    status_response = client.get(f"/api/v1/admin/backfill/jobs/{job_id}", headers=admin_headers)
+    assert status_response.status_code == 200
+    status_payload = status_response.json()
+    assert status_payload["status"] == "completed"
+    assert status_payload["processed_documents"] == 3
+    assert status_payload["discovered_chunks"] == 7
+    assert status_payload["progress_percent"] == 100
+
+    list_response = client.get("/api/v1/admin/backfill/jobs", headers=admin_headers)
+    assert list_response.status_code == 200
+    listed_ids = {job["job_id"] for job in list_response.json()["jobs"]}
+    assert job_id in listed_ids
+
+
+def test_document_registry_admin_endpoints_happy_path(client: TestClient, monkeypatch):
+    admin_headers = _admin_headers(client)
+
+    created = chat_store.upsert_document_registry_entry(
+        document_key="rbi|doc_registry_happy|2026-04-20",
+        source="doc_registry_happy.pdf",
+        document_title="Registry Happy Document",
+        version_date="2026-04-20",
+        effective_date="2026-04-20",
+        regulator="RBI",
+        document_status="Active",
+        chunk_count=4,
+        metadata={"source_type": "pdf"},
+    )
+    document_id = int(created["id"])
+
+    cache_refresh_calls = {"count": 0}
+    reindex_calls: list[dict] = []
+
+    def fake_refresh_rag_caches():
+        cache_refresh_calls["count"] += 1
+
+    def fake_run_registry_reindex(*, trigger: str, document_id: int | None = None, actor_user_id: int | None = None):
+        reindex_calls.append(
+            {
+                "trigger": trigger,
+                "document_id": document_id,
+                "actor_user_id": actor_user_id,
+            }
+        )
+        return {
+            "success": True,
+            "reason": "test_stub",
+        }
+
+    monkeypatch.setattr("backend.app.api.routers.admin.refresh_rag_caches", fake_refresh_rag_caches)
+    monkeypatch.setattr("backend.app.api.routers.admin.run_registry_reindex", fake_run_registry_reindex)
+
+    list_response = client.get(
+        "/api/v1/admin/documents",
+        headers=admin_headers,
+        params={"summary_status": "pending", "q": "Registry Happy", "limit": 20, "offset": 0},
+    )
+    assert list_response.status_code == 200
+    list_payload = list_response.json()
+    assert int(list_payload["total"]) >= 1
+    assert any(int(item["id"]) == document_id for item in list_payload["documents"])
+
+    detail_response = client.get(f"/api/v1/admin/documents/{document_id}", headers=admin_headers)
+    assert detail_response.status_code == 200
+    detail_payload = detail_response.json()
+    assert int(detail_payload["document"]["id"]) == document_id
+    assert isinstance(detail_payload["audit_log"], list)
+
+    patch_response = client.patch(
+        f"/api/v1/admin/documents/{document_id}",
+        headers=admin_headers,
+        json={
+            "regulator": "Reserve Bank of India",
+            "document_status": "Current",
+            "chunk_count": 7,
+            "metadata": {"source_type": "pdf", "revision": "v2"},
+        },
+    )
+    assert patch_response.status_code == 200
+    patch_payload = patch_response.json()
+    assert patch_payload["document"]["regulator"] == "Reserve Bank of India"
+    assert patch_payload["document"]["document_status"] == "Current"
+    assert int(patch_payload["document"]["chunk_count"]) == 7
+
+    delete_response = client.post(
+        f"/api/v1/admin/documents/{document_id}/soft-delete",
+        headers=admin_headers,
+        json={"reason": "Superseded document"},
+    )
+    assert delete_response.status_code == 200
+    delete_payload = delete_response.json()
+    assert int(delete_payload["document"]["is_deleted"]) == 1
+
+    deleted_only_response = client.get(
+        "/api/v1/admin/documents",
+        headers=admin_headers,
+        params={"include_deleted": True, "is_deleted": True, "q": "Registry Happy"},
+    )
+    assert deleted_only_response.status_code == 200
+    deleted_documents = deleted_only_response.json()["documents"]
+    assert any(int(item["id"]) == document_id for item in deleted_documents)
+
+    assert cache_refresh_calls["count"] >= 2
+    assert len(reindex_calls) >= 2
+    assert {item["trigger"] for item in reindex_calls} >= {
+        "admin_documents_update",
+        "admin_documents_soft_delete",
+    }
+    assert all(int(item["document_id"] or 0) == document_id for item in reindex_calls)
+
+
+def test_document_registry_admin_endpoints_failure_paths(client: TestClient):
+    admin_headers = _admin_headers(client)
+
+    invalid_filter = client.get(
+        "/api/v1/admin/documents",
+        headers=admin_headers,
+        params={"summary_status": "invalid-status"},
+    )
+    assert invalid_filter.status_code == 400
+
+    missing_detail = client.get("/api/v1/admin/documents/999999", headers=admin_headers)
+    assert missing_detail.status_code == 404
+
+    empty_patch = client.patch(
+        "/api/v1/admin/documents/999999",
+        headers=admin_headers,
+        json={},
+    )
+    assert empty_patch.status_code == 400
+
+    missing_patch = client.patch(
+        "/api/v1/admin/documents/999999",
+        headers=admin_headers,
+        json={"regulator": "RBI"},
+    )
+    assert missing_patch.status_code == 404
+
+    missing_delete = client.post(
+        "/api/v1/admin/documents/999999/soft-delete",
+        headers=admin_headers,
+        json={"reason": "missing"},
+    )
+    assert missing_delete.status_code == 404
+
+
+def test_summary_job_lifecycle_transitions(client: TestClient, monkeypatch):
+    admin_headers = _admin_headers(client)
+
+    # Seed at least one pending document so total_documents is non-zero.
+    chat_store.upsert_document_registry_entry(
+        document_key="rbi|summary_job|2026-04-20",
+        source="summary_job.pdf",
+        document_title="Summary Job Document",
+        version_date="2026-04-20",
+        effective_date="2026-04-20",
+        regulator="RBI",
+        document_status="Active",
+        chunk_count=2,
+    )
+
+    def fake_start_document_summary_job(*, job_id: str, include_failed: bool, retry_after_seconds: int, batch_size: int):
+        assert include_failed is True
+        assert retry_after_seconds == 0
+        assert batch_size == 10
+        chat_store.update_summary_job(
+            job_id,
+            status=chat_store.SUMMARY_JOB_STATUS_RUNNING,
+            total_documents=2,
+            processed_documents=1,
+            completed_documents=1,
+            failed_documents=0,
+            started_at="2026-04-20T00:00:00+00:00",
+        )
+        chat_store.update_summary_job(
+            job_id,
+            status=chat_store.SUMMARY_JOB_STATUS_COMPLETED,
+            total_documents=2,
+            processed_documents=2,
+            completed_documents=2,
+            failed_documents=0,
+            completed_at="2026-04-20T00:00:15+00:00",
+        )
+
+    monkeypatch.setattr(
+        "backend.app.api.routers.admin.start_document_summary_job",
+        fake_start_document_summary_job,
+    )
+
+    create_response = client.post(
+        "/api/v1/admin/summary/jobs",
+        headers=admin_headers,
+        json={"include_failed": True, "retry_after_seconds": 0, "batch_size": 10},
+    )
+    assert create_response.status_code == 202
+
+    payload = create_response.json()
+    job_id = payload["job"]["job_id"]
+
+    status_response = client.get(f"/api/v1/admin/summary/jobs/{job_id}", headers=admin_headers)
+    assert status_response.status_code == 200
+    status_payload = status_response.json()
+    assert status_payload["status"] == "completed"
+    assert status_payload["processed_documents"] == 2
+    assert status_payload["completed_documents"] == 2
+    assert status_payload["failed_documents"] == 0
+
+    list_response = client.get("/api/v1/admin/summary/jobs", headers=admin_headers)
+    assert list_response.status_code == 200
+    listed_ids = {job["job_id"] for job in list_response.json()["jobs"]}
+    assert job_id in listed_ids
+
+
+def test_summary_job_failure_paths(client: TestClient):
+    admin_headers = _admin_headers(client)
+
+    missing_job = client.get("/api/v1/admin/summary/jobs/missing_job", headers=admin_headers)
+    assert missing_job.status_code == 404

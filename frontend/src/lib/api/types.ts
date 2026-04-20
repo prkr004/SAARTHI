@@ -195,6 +195,143 @@ export interface IngestionJobListResponse {
   jobs: IngestionJobSummary[];
 }
 
+export type BackfillJobStatus = "queued" | "running" | "completed" | "failed";
+
+export interface BackfillJobSummary {
+  job_id: string;
+  created_by: number;
+  created_by_employee_id?: string | null;
+  created_by_name?: string | null;
+  created_at: string;
+  updated_at: string;
+  started_at?: string | null;
+  completed_at?: string | null;
+  status: BackfillJobStatus;
+  total_documents: number;
+  processed_documents: number;
+  discovered_chunks: number;
+  progress_percent: number;
+  current_document_key?: string | null;
+  error_message?: string | null;
+}
+
+export interface BackfillJobCreateResponse {
+  message: string;
+  job: BackfillJobSummary;
+}
+
+export interface BackfillJobListResponse {
+  jobs: BackfillJobSummary[];
+}
+
+export type DocumentSummaryStatus = "pending" | "running" | "completed" | "failed";
+export type SummaryJobStatus = "queued" | "running" | "completed" | "failed";
+
+export interface SummaryJobSummary {
+  job_id: string;
+  created_by: number;
+  created_by_employee_id?: string | null;
+  created_by_name?: string | null;
+  created_at: string;
+  updated_at: string;
+  started_at?: string | null;
+  completed_at?: string | null;
+  status: SummaryJobStatus;
+  total_documents: number;
+  processed_documents: number;
+  completed_documents: number;
+  failed_documents: number;
+  include_failed: boolean;
+  retry_after_seconds: number;
+  batch_size: number;
+  current_document_id?: number | null;
+  error_message?: string | null;
+}
+
+export interface SummaryJobCreatePayload {
+  include_failed?: boolean;
+  retry_after_seconds?: number;
+  batch_size?: number;
+}
+
+export interface SummaryJobCreateResponse {
+  message: string;
+  job: SummaryJobSummary;
+}
+
+export interface SummaryJobListResponse {
+  jobs: SummaryJobSummary[];
+}
+
+export interface DocumentRegistryRecord {
+  id: number;
+  document_key: string;
+  source: string;
+  document_title: string;
+  version_date?: string | null;
+  effective_date?: string | null;
+  regulator?: string | null;
+  document_status?: string | null;
+  chunk_count: number;
+  metadata?: Record<string, unknown> | null;
+  summary_status: DocumentSummaryStatus;
+  summary_one_liner?: string | null;
+  summary_short?: string | null;
+  summary_error?: string | null;
+  summary_updated_at?: string | null;
+  first_seen_at: string;
+  last_seen_at: string;
+  created_at: string;
+  updated_at: string;
+  last_ingestion_job_id?: string | null;
+  is_deleted: number;
+  deleted_at?: string | null;
+  deleted_by?: number | null;
+  deleted_reason?: string | null;
+  deleted_by_employee_id?: string | null;
+  deleted_by_name?: string | null;
+}
+
+export interface DocumentRegistryListResponse {
+  documents: DocumentRegistryRecord[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface DocumentMetadataUpdatePayload {
+  source?: string;
+  document_title?: string;
+  version_date?: string;
+  effective_date?: string;
+  regulator?: string;
+  document_status?: string;
+  chunk_count?: number;
+  metadata?: Record<string, unknown> | null;
+  last_ingestion_job_id?: string;
+}
+
+export interface DocumentMetadataUpdateResponse {
+  message: string;
+  document: DocumentRegistryRecord;
+}
+
+export interface DocumentSoftDeleteResponse {
+  message: string;
+  document: DocumentRegistryRecord;
+}
+
+export interface DocumentListParams {
+  q?: string;
+  summary_status?: DocumentSummaryStatus;
+  include_deleted?: boolean;
+  is_deleted?: boolean;
+  regulator?: string;
+  document_status?: string;
+  limit?: number;
+  offset?: number;
+}
+
 export interface ActiveUsersResponse {
   users: AdminUserSummary[];
 }

@@ -6,7 +6,6 @@ import logging
 import re
 from datetime import datetime, timezone
 from pathlib import Path
-from threading import Lock
 from typing import Iterable
 
 from fastapi import UploadFile
@@ -18,6 +17,8 @@ from ingestion.pdf_loader import load_and_chunk_pdf
 from ingestion.vectorstore_builder import EMBEDDING_MODEL
 
 from backend.app.core.config import get_settings
+from backend.app.services.document_reindex_service import INDEX_WRITE_LOCK
+from backend.app.services.rag_cache_service import refresh_rag_caches
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +29,6 @@ _ALLOWED_CONTENT_TYPES = {
 }
 _ALLOWED_SUFFIX = ".pdf"
 _FILENAME_SANITIZER = re.compile(r"[^A-Za-z0-9._-]+")
-
-_FAISS_WRITE_LOCK = Lock()
-
 
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -54,15 +52,8 @@ def _resolve_index_directory() -> Path:
 
 
 def _refresh_rag_cache() -> None:
-    # The query module memoizes FAISS and embedding instances. Clear those so
-    # newly ingested chunks become queryable immediately without restarts.
-    try:
-        import query
-
-        query.load_vectorstore.cache_clear()
-        query.get_embeddings.cache_clear()
-    except Exception as exc:  # pragma: no cover - defensive cache refresh
-        logger.warning("Unable to refresh query cache after ingestion: %s", exc)
+    # Preserve existing call-site behavior while routing to shared cache logic.
+    refresh_rag_caches()
 
 
 def _infer_metadata_from_file(path: Path) -> dict:
@@ -157,7 +148,7 @@ def start_ingestion_job(*, job_id: str, stored_files: Iterable[Path]) -> None:
         )
         return
 
-    with _FAISS_WRITE_LOCK:
+    with INDEX_WRITE_LOCK:
         chat_store.update_ingestion_job(
             job_id,
             status=chat_store.INGESTION_STATUS_RUNNING,

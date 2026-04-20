@@ -8,7 +8,16 @@ import type {
   AskResponseData,
   AskTemporalRequest,
   AuthTokenResponse,
+  BackfillJobCreateResponse,
+  BackfillJobListResponse,
+  BackfillJobSummary,
   ConversationSummary,
+  DocumentListParams,
+  DocumentMetadataUpdatePayload,
+  DocumentMetadataUpdateResponse,
+  DocumentRegistryListResponse,
+  DocumentRegistryRecord,
+  DocumentSoftDeleteResponse,
   GenerateDocumentRequest,
   IngestionJobCreateResponse,
   IngestionJobListResponse,
@@ -16,6 +25,10 @@ import type {
   MessageItem,
   ModelsResponseData,
   ReviewUserResponse,
+  SummaryJobCreatePayload,
+  SummaryJobCreateResponse,
+  SummaryJobListResponse,
+  SummaryJobSummary,
   UserProfile,
 } from "./types";
 
@@ -33,6 +46,20 @@ function unwrapEnvelope<T>(envelope: ApiEnvelope<T>): T {
     throw new Error(envelope.error?.message ?? "Unexpected API envelope.");
   }
   return envelope.data;
+}
+
+function buildQuery(params: Record<string, string | number | boolean | null | undefined>): string {
+  const search = new URLSearchParams();
+
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") {
+      return;
+    }
+    search.set(key, String(value));
+  });
+
+  const query = search.toString();
+  return query ? `?${query}` : "";
 }
 
 export const api = {
@@ -166,5 +193,59 @@ export const api = {
 
   listIngestionJobs(limit = 20): Promise<IngestionJobListResponse> {
     return apiClient.get<IngestionJobListResponse>(`/admin/ingestion/jobs?limit=${limit}`);
+  },
+
+  createBackfillJob(manifestPath?: string): Promise<BackfillJobCreateResponse> {
+    return apiClient.post<BackfillJobCreateResponse>("/admin/backfill/jobs", {
+      manifest_path: manifestPath,
+    });
+  },
+
+  getBackfillJob(jobId: string): Promise<BackfillJobSummary> {
+    return apiClient.get<BackfillJobSummary>(`/admin/backfill/jobs/${jobId}`);
+  },
+
+  listBackfillJobs(limit = 20): Promise<BackfillJobListResponse> {
+    return apiClient.get<BackfillJobListResponse>(`/admin/backfill/jobs?limit=${limit}`);
+  },
+
+  listDocuments(params: DocumentListParams = {}): Promise<DocumentRegistryListResponse> {
+    const query = buildQuery({
+      q: params.q,
+      summary_status: params.summary_status,
+      include_deleted: params.include_deleted,
+      is_deleted: params.is_deleted,
+      regulator: params.regulator,
+      document_status: params.document_status,
+      limit: params.limit,
+      offset: params.offset,
+    });
+    return apiClient.get<DocumentRegistryListResponse>(`/admin/documents${query}`);
+  },
+
+  getDocumentDetail(documentId: number, auditLimit = 50): Promise<{ document: DocumentRegistryRecord; audit_log: unknown[] }> {
+    return apiClient.get<{ document: DocumentRegistryRecord; audit_log: unknown[] }>(
+      `/admin/documents/${documentId}?audit_limit=${auditLimit}`,
+    );
+  },
+
+  updateDocumentMetadata(documentId: number, payload: DocumentMetadataUpdatePayload): Promise<DocumentMetadataUpdateResponse> {
+    return apiClient.patch<DocumentMetadataUpdateResponse>(`/admin/documents/${documentId}`, payload);
+  },
+
+  softDeleteDocument(documentId: number, reason?: string): Promise<DocumentSoftDeleteResponse> {
+    return apiClient.post<DocumentSoftDeleteResponse>(`/admin/documents/${documentId}/soft-delete`, { reason });
+  },
+
+  createSummaryJob(payload: SummaryJobCreatePayload = {}): Promise<SummaryJobCreateResponse> {
+    return apiClient.post<SummaryJobCreateResponse>("/admin/summary/jobs", payload);
+  },
+
+  getSummaryJob(jobId: string): Promise<SummaryJobSummary> {
+    return apiClient.get<SummaryJobSummary>(`/admin/summary/jobs/${jobId}`);
+  },
+
+  listSummaryJobs(limit = 20): Promise<SummaryJobListResponse> {
+    return apiClient.get<SummaryJobListResponse>(`/admin/summary/jobs?limit=${limit}`);
   },
 };
