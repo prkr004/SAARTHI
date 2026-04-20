@@ -21,7 +21,13 @@ from hmac import compare_digest
 from pathlib import Path
 from typing import Optional
 
-DB_PATH = Path("data") / "saarthi_secure.db"
+DEFAULT_EMPLOYEE_DB_PATH = Path("data") / "shared" / "saarthi_employee.db"
+DEFAULT_ADMIN_DB_PATH = Path("data") / "shared" / "saarthi_admin.db"
+DEFAULT_SESSION_DB_PATH = Path("data") / "shared" / "saarthi_sessions.db"
+LEGACY_DB_PATH = Path("data") / "saarthi_secure.db"
+
+# Compatibility alias: tests and older code paths may monkeypatch this symbol.
+DB_PATH = Path(os.getenv("SAARTHI_EMPLOYEE_DB_PATH", str(DEFAULT_EMPLOYEE_DB_PATH)))
 
 PASSWORD_ITERATIONS = 240_000
 MAX_FAILED_ATTEMPTS = 5
@@ -40,6 +46,9 @@ DEFAULT_ADMIN_PASSWORD = "AdminPass#2026"
 
 ROLE_ADMIN = "admin"
 ROLE_USER = "user"
+
+USER_SCOPE_EMPLOYEE = "employee"
+USER_SCOPE_ADMIN = "admin"
 
 APPROVAL_PENDING = "pending"
 APPROVAL_APPROVED = "approved"
@@ -98,17 +107,164 @@ def _parse_iso(value: str) -> datetime:
     return datetime.fromisoformat(value)
 
 
-def _connection() -> sqlite3.Connection:
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+def _normalized_path(path_value: str | Path) -> Path:
+    return Path(path_value)
+
+
+def _employee_db_path() -> Path:
+    return _normalized_path(DB_PATH)
+
+
+def _derive_sibling_db_path(base_path: Path, suffix: str) -> Path:
+    ext = base_path.suffix or ".db"
+    return base_path.with_name(f"{base_path.stem}_{suffix}{ext}")
+
+
+def _admin_db_path() -> Path:
+    override = os.getenv("SAARTHI_ADMIN_DB_PATH")
+    if override:
+        return _normalized_path(override)
+
+    employee_path = _employee_db_path()
+    if employee_path == DEFAULT_EMPLOYEE_DB_PATH:
+        return DEFAULT_ADMIN_DB_PATH
+    return _derive_sibling_db_path(employee_path, "admin")
+
+
+def _session_db_path() -> Path:
+    override = os.getenv("SAARTHI_SESSION_DB_PATH")
+    if override:
+        return _normalized_path(override)
+
+    employee_path = _employee_db_path()
+    if employee_path == DEFAULT_EMPLOYEE_DB_PATH:
+        return DEFAULT_SESSION_DB_PATH
+    return _derive_sibling_db_path(employee_path, "sessions")
+
+
+def get_database_paths() -> dict[str, Path]:
+    return {
+        "employee": _employee_db_path(),
+        "admin": _admin_db_path(),
+        "session": _session_db_path(),
+        "legacy": LEGACY_DB_PATH,
+    }
+
+
+def get_session_db_path() -> Path:
+    return _session_db_path()
+
+
+def _open_connection(db_path: Path) -> sqlite3.Connection:
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(db_path, timeout=30)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode = WAL")
+    conn.execute("PRAGMA synchronous = NORMAL")
+    conn.execute("PRAGMA busy_timeout = 5000")
     conn.execute("PRAGMA foreign_keys = ON")
     return conn
+
+
+def _employee_connection() -> sqlite3.Connection:
+    return _open_connection(_employee_db_path())
+
+
+def _admin_connection() -> sqlite3.Connection:
+    return _open_connection(_admin_db_path())
+
+
+def _connection() -> sqlite3.Connection:
+    # Backward-compatible alias for existing code paths that operate on employee data.
+    return _employee_connection()
 
 
 def _column_exists(conn: sqlite3.Connection, table_name: str, column_name: str) -> bool:
     rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
     return any(str(row["name"]).lower() == column_name.lower() for row in rows)
+
+
+def _users_table_has_reviewed_by_fk(conn: sqlite3.Connection) -> bool:
+    rows = conn.execute("PRAGMA foreign_key_list(users)").fetchall()
+    return any(str(row["from"]).lower() == "reviewed_by" for row in rows)
+
+
+def _create_users_table_sql(*, include_reviewed_by_fk: bool) -> str:
+    foreign_key_clause = ""
+    if include_reviewed_by_fk:
+        foreign_key_clause = ",\n                FOREIGN KEY(reviewed_by) REFERENCES users(id) ON DELETE SET NULL"
+
+    return f"""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                employee_id TEXT UNIQUE NOT NULL,
+                full_name TEXT NOT NULL,
+                password_hash TEXT NOT NULL,
+                role TEXT NOT NULL DEFAULT 'user',
+                approval_status TEXT NOT NULL DEFAULT 'pending',
+                reviewed_by INTEGER,
+                reviewed_at TEXT,
+                review_reason TEXT,
+                email TEXT,
+                failed_attempts INTEGER NOT NULL DEFAULT 0,
+                locked_until TEXT,
+                created_at TEXT NOT NULL,
+                last_login TEXT{foreign_key_clause}
+            )
+            """
+
+
+def _rebuild_users_table_without_reviewed_by_fk(conn: sqlite3.Connection) -> None:
+    conn.commit()
+    conn.execute("PRAGMA foreign_keys = OFF")
+    try:
+        conn.execute(
+            _create_users_table_sql(include_reviewed_by_fk=False).replace(
+                "CREATE TABLE IF NOT EXISTS users",
+                "CREATE TABLE users_rebuild",
+            )
+        )
+        conn.execute(
+            """
+            INSERT INTO users_rebuild (
+                id,
+                employee_id,
+                full_name,
+                password_hash,
+                role,
+                approval_status,
+                reviewed_by,
+                reviewed_at,
+                review_reason,
+                email,
+                failed_attempts,
+                locked_until,
+                created_at,
+                last_login
+            )
+            SELECT
+                id,
+                employee_id,
+                full_name,
+                password_hash,
+                role,
+                approval_status,
+                reviewed_by,
+                reviewed_at,
+                review_reason,
+                email,
+                failed_attempts,
+                locked_until,
+                created_at,
+                last_login
+            FROM users
+            """
+        )
+        conn.execute("DROP TABLE users")
+        conn.execute("ALTER TABLE users_rebuild RENAME TO users")
+        conn.commit()
+    finally:
+        conn.execute("PRAGMA foreign_keys = ON")
 
 
 def _ensure_users_schema(conn: sqlite3.Connection) -> None:
@@ -672,100 +828,416 @@ def _validate_email(email: Optional[str], *, required: bool) -> Optional[str]:
     return None
 
 
+def _table_exists(conn: sqlite3.Connection, table_name: str) -> bool:
+    row = conn.execute(
+        """
+        SELECT 1
+        FROM sqlite_master
+        WHERE type = 'table' AND name = ?
+        LIMIT 1
+        """,
+        (table_name,),
+    ).fetchone()
+    return row is not None
+
+
+def _ensure_users_table(conn: sqlite3.Connection, *, include_reviewed_by_fk: bool) -> None:
+    conn.execute(_create_users_table_sql(include_reviewed_by_fk=include_reviewed_by_fk))
+    _ensure_users_schema(conn)
+
+    if not include_reviewed_by_fk and _users_table_has_reviewed_by_fk(conn):
+        _rebuild_users_table_without_reviewed_by_fk(conn)
+
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_users_employee_id
+        ON users(employee_id)
+        """
+    )
+
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_users_approval_status
+        ON users(approval_status)
+        """
+    )
+
+
+def _ensure_employee_schema(conn: sqlite3.Connection) -> None:
+    _ensure_users_table(conn, include_reviewed_by_fk=False)
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS conversations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            title TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+        """
+    )
+
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            conversation_id INTEGER NOT NULL,
+            role TEXT NOT NULL,
+            content TEXT NOT NULL,
+            sources_json TEXT,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+        )
+        """
+    )
+
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_conversations_user_updated
+        ON conversations(user_id, updated_at DESC)
+        """
+    )
+
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_messages_conversation_id_id
+        ON messages(conversation_id, id)
+        """
+    )
+
+    conn.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_messages_conversation_role
+        ON messages(conversation_id, role)
+        """
+    )
+
+
+def _ensure_admin_schema(conn: sqlite3.Connection) -> None:
+    _ensure_users_table(conn, include_reviewed_by_fk=True)
+    _ensure_ingestion_jobs_schema(conn)
+    _ensure_backfill_jobs_schema(conn)
+    _ensure_documents_schema(conn)
+    _ensure_summary_jobs_schema(conn)
+    _ensure_document_audit_log_schema(conn)
+
+
+def _copy_rows(
+    source_conn: sqlite3.Connection,
+    target_conn: sqlite3.Connection,
+    table_name: str,
+    columns: list[str],
+    *,
+    where_clause: Optional[str] = None,
+    where_params: tuple[object, ...] = (),
+) -> int:
+    if not _table_exists(source_conn, table_name):
+        return 0
+
+    query = f"SELECT {', '.join(columns)} FROM {table_name}"
+    if where_clause:
+        query = f"{query} WHERE {where_clause}"
+
+    rows = source_conn.execute(query, where_params).fetchall()
+    if not rows:
+        return 0
+
+    placeholders = ", ".join("?" for _ in columns)
+    insert_sql = (
+        f"INSERT OR IGNORE INTO {table_name} ({', '.join(columns)}) "
+        f"VALUES ({placeholders})"
+    )
+
+    inserted = 0
+    for row in rows:
+        target_conn.execute(insert_sql, tuple(row[column] for column in columns))
+        inserted += 1
+    return inserted
+
+
+def _copy_user_rows(
+    source_conn: sqlite3.Connection,
+    target_conn: sqlite3.Connection,
+    *,
+    where_clause: Optional[str] = None,
+    where_params: tuple[object, ...] = (),
+) -> int:
+    user_columns = [
+        "id",
+        "employee_id",
+        "full_name",
+        "password_hash",
+        "role",
+        "approval_status",
+        "reviewed_by",
+        "reviewed_at",
+        "review_reason",
+        "email",
+        "failed_attempts",
+        "locked_until",
+        "created_at",
+        "last_login",
+    ]
+
+    if not _table_exists(source_conn, "users"):
+        return 0
+
+    query = f"SELECT {', '.join(user_columns)} FROM users"
+    if where_clause:
+        query = f"{query} WHERE {where_clause}"
+
+    rows = source_conn.execute(query, where_params).fetchall()
+    if not rows:
+        return 0
+
+    placeholders = ", ".join("?" for _ in user_columns)
+    insert_sql = (
+        f"INSERT OR IGNORE INTO users ({', '.join(user_columns)}) "
+        f"VALUES ({placeholders})"
+    )
+
+    inserted = 0
+    for row in rows:
+        payload = [row[column] for column in user_columns]
+        payload[user_columns.index("reviewed_by")] = None
+        target_conn.execute(insert_sql, payload)
+        inserted += 1
+
+    for row in rows:
+        reviewer_id = row["reviewed_by"]
+        if reviewer_id is None:
+            continue
+        reviewer_exists = target_conn.execute(
+            "SELECT 1 FROM users WHERE id = ?",
+            (int(reviewer_id),),
+        ).fetchone()
+        if reviewer_exists is None:
+            continue
+        target_conn.execute(
+            "UPDATE users SET reviewed_by = ? WHERE id = ?",
+            (int(reviewer_id), int(row["id"])),
+        )
+
+    return inserted
+
+
+def _migrate_legacy_combined_database() -> None:
+    employee_path = _employee_db_path()
+    candidate_sources: list[Path] = []
+    if employee_path == DEFAULT_EMPLOYEE_DB_PATH and LEGACY_DB_PATH != employee_path:
+        candidate_sources.append(LEGACY_DB_PATH)
+    candidate_sources.append(employee_path)
+
+    with _admin_connection() as admin_conn:
+        admin_has_documents = int(
+            (
+                admin_conn.execute("SELECT COUNT(1) AS total FROM documents").fetchone()["total"]
+            )
+            or 0
+        ) > 0
+        admin_has_ingestion_jobs = int(
+            (
+                admin_conn.execute("SELECT COUNT(1) AS total FROM ingestion_jobs").fetchone()["total"]
+            )
+            or 0
+        ) > 0
+        admin_has_backfill_jobs = int(
+            (
+                admin_conn.execute("SELECT COUNT(1) AS total FROM backfill_jobs").fetchone()["total"]
+            )
+            or 0
+        ) > 0
+        admin_has_summary_jobs = int(
+            (
+                admin_conn.execute("SELECT COUNT(1) AS total FROM summary_jobs").fetchone()["total"]
+            )
+            or 0
+        ) > 0
+    if admin_has_documents or admin_has_ingestion_jobs or admin_has_backfill_jobs or admin_has_summary_jobs:
+        return
+
+    source_path: Optional[Path] = None
+    admin_tables = {
+        "ingestion_jobs",
+        "backfill_jobs",
+        "summary_jobs",
+        "documents",
+        "document_audit_log",
+    }
+    for candidate_path in candidate_sources:
+        if not candidate_path.exists():
+            continue
+
+        with _open_connection(candidate_path) as source_candidate_conn:
+            if not _table_exists(source_candidate_conn, "users"):
+                continue
+
+            has_admin_users = int(
+                (
+                    source_candidate_conn.execute(
+                        """
+                        SELECT COUNT(1) AS total
+                        FROM users
+                        WHERE LOWER(COALESCE(role, 'user')) = 'admin'
+                        """
+                    ).fetchone()["total"]
+                )
+                or 0
+            ) > 0
+            has_admin_tables = any(_table_exists(source_candidate_conn, table) for table in admin_tables)
+
+            if has_admin_users or has_admin_tables:
+                source_path = candidate_path
+                break
+
+    if source_path is None:
+        return
+
+    with _open_connection(source_path) as source_conn:
+        _ensure_employee_schema(source_conn)
+        _ensure_admin_schema(source_conn)
+
+        conversation_columns = ["id", "user_id", "title", "created_at", "updated_at"]
+        message_columns = ["id", "conversation_id", "role", "content", "sources_json", "created_at"]
+
+        ingestion_job_columns = [
+            "job_id",
+            "created_by",
+            "created_at",
+            "updated_at",
+            "started_at",
+            "completed_at",
+            "status",
+            "total_files",
+            "processed_files",
+            "total_chunks",
+            "progress_percent",
+            "current_file",
+            "error_message",
+        ]
+        backfill_job_columns = [
+            "job_id",
+            "created_by",
+            "created_at",
+            "updated_at",
+            "started_at",
+            "completed_at",
+            "status",
+            "total_documents",
+            "processed_documents",
+            "discovered_chunks",
+            "progress_percent",
+            "current_document_key",
+            "error_message",
+        ]
+        summary_job_columns = [
+            "job_id",
+            "created_by",
+            "created_at",
+            "updated_at",
+            "started_at",
+            "completed_at",
+            "status",
+            "total_documents",
+            "processed_documents",
+            "completed_documents",
+            "failed_documents",
+            "include_failed",
+            "retry_after_seconds",
+            "batch_size",
+            "current_document_id",
+            "error_message",
+        ]
+        document_columns = [
+            "id",
+            "document_key",
+            "source",
+            "document_title",
+            "version_date",
+            "effective_date",
+            "regulator",
+            "document_status",
+            "chunk_count",
+            "metadata_json",
+            "summary_status",
+            "summary_one_liner",
+            "summary_short",
+            "summary_error",
+            "summary_updated_at",
+            "first_seen_at",
+            "last_seen_at",
+            "created_at",
+            "updated_at",
+            "last_ingestion_job_id",
+            "is_deleted",
+            "deleted_at",
+            "deleted_by",
+            "deleted_reason",
+        ]
+        document_audit_columns = [
+            "id",
+            "document_id",
+            "event_type",
+            "reason",
+            "payload_json",
+            "actor_user_id",
+            "created_at",
+        ]
+
+        if source_path != employee_path:
+            with _employee_connection() as employee_conn:
+                _copy_user_rows(
+                    source_conn,
+                    employee_conn,
+                    where_clause="LOWER(COALESCE(role, 'user')) != 'admin'",
+                )
+                _copy_rows(
+                    source_conn,
+                    employee_conn,
+                    "conversations",
+                    conversation_columns,
+                    where_clause="user_id IN (SELECT id FROM users WHERE LOWER(COALESCE(role, 'user')) != 'admin')",
+                )
+                _copy_rows(
+                    source_conn,
+                    employee_conn,
+                    "messages",
+                    message_columns,
+                    where_clause=(
+                        "conversation_id IN ("
+                        "SELECT c.id FROM conversations c "
+                        "INNER JOIN users u ON u.id = c.user_id "
+                        "WHERE LOWER(COALESCE(u.role, 'user')) != 'admin'"
+                        ")"
+                    ),
+                )
+                employee_conn.commit()
+
+        with _admin_connection() as admin_conn:
+            _copy_user_rows(
+                source_conn,
+                admin_conn,
+            )
+            _copy_rows(source_conn, admin_conn, "ingestion_jobs", ingestion_job_columns)
+            _copy_rows(source_conn, admin_conn, "backfill_jobs", backfill_job_columns)
+            _copy_rows(source_conn, admin_conn, "documents", document_columns)
+            _copy_rows(source_conn, admin_conn, "summary_jobs", summary_job_columns)
+            _copy_rows(source_conn, admin_conn, "document_audit_log", document_audit_columns)
+            admin_conn.commit()
+
+
 def initialize_db() -> None:
-    with _connection() as conn:
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                employee_id TEXT UNIQUE NOT NULL,
-                full_name TEXT NOT NULL,
-                password_hash TEXT NOT NULL,
-                role TEXT NOT NULL DEFAULT 'user',
-                approval_status TEXT NOT NULL DEFAULT 'pending',
-                reviewed_by INTEGER,
-                reviewed_at TEXT,
-                review_reason TEXT,
-                email TEXT,
-                failed_attempts INTEGER NOT NULL DEFAULT 0,
-                locked_until TEXT,
-                created_at TEXT NOT NULL,
-                last_login TEXT,
-                FOREIGN KEY(reviewed_by) REFERENCES users(id) ON DELETE SET NULL
-            )
-            """
-        )
+    with _employee_connection() as employee_conn:
+        _ensure_employee_schema(employee_conn)
+        employee_conn.commit()
 
-        _ensure_users_schema(conn)
-        _ensure_ingestion_jobs_schema(conn)
-        _ensure_backfill_jobs_schema(conn)
-        _ensure_documents_schema(conn)
-        _ensure_summary_jobs_schema(conn)
-        _ensure_document_audit_log_schema(conn)
+    with _admin_connection() as admin_conn:
+        _ensure_admin_schema(admin_conn)
+        admin_conn.commit()
 
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS conversations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                title TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
-            )
-            """
-        )
-
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS messages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                conversation_id INTEGER NOT NULL,
-                role TEXT NOT NULL,
-                content TEXT NOT NULL,
-                sources_json TEXT,
-                created_at TEXT NOT NULL,
-                FOREIGN KEY(conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
-            )
-            """
-        )
-
-        conn.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_users_employee_id
-            ON users(employee_id)
-            """
-        )
-
-        conn.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_users_approval_status
-            ON users(approval_status)
-            """
-        )
-
-        conn.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_conversations_user_updated
-            ON conversations(user_id, updated_at DESC)
-            """
-        )
-
-        conn.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_messages_conversation_id_id
-            ON messages(conversation_id, id)
-            """
-        )
-
-        conn.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_messages_conversation_role
-            ON messages(conversation_id, role)
-            """
-        )
-
-        conn.commit()
+    _migrate_legacy_combined_database()
 
 
 def _hash_password(password: str) -> str:
@@ -840,7 +1312,10 @@ def register_user(
     if validation_error:
         return AuthResult(success=False, message=validation_error)
 
-    with _connection() as conn:
+    if get_user_by_employee_id(employee_id, scope=USER_SCOPE_ADMIN) is not None:
+        return AuthResult(success=False, message="An account with this Employee ID already exists.")
+
+    with _employee_connection() as conn:
         try:
             conn.execute(
                 """
@@ -874,83 +1349,95 @@ def register_user(
 def authenticate_user(employee_id: str, password: str) -> AuthResult:
     employee_id = employee_id.strip()
 
-    with _connection() as conn:
-        row = conn.execute(
-            "SELECT * FROM users WHERE employee_id = ?",
-            (employee_id,),
-        ).fetchone()
+    for user_scope, connection_factory in (
+        (USER_SCOPE_EMPLOYEE, _employee_connection),
+        (USER_SCOPE_ADMIN, _admin_connection),
+    ):
+        with connection_factory() as conn:
+            row = conn.execute(
+                "SELECT * FROM users WHERE employee_id = ?",
+                (employee_id,),
+            ).fetchone()
 
-        if row is None:
-            return AuthResult(success=False, message="Employee ID or password is incorrect.")
+            if row is None:
+                continue
 
-        locked_until = row["locked_until"]
-        if locked_until:
-            lock_time = _parse_iso(locked_until)
-            if lock_time > datetime.now(timezone.utc):
+            locked_until = row["locked_until"]
+            if locked_until:
+                lock_time = _parse_iso(locked_until)
+                if lock_time > datetime.now(timezone.utc):
+                    return AuthResult(
+                        success=False,
+                        message="Account temporarily locked due to repeated failed logins.",
+                    )
+
+            if not _verify_password(password, row["password_hash"]):
+                failed_attempts = int(row["failed_attempts"]) + 1
+                new_lock_time = None
+                if failed_attempts >= MAX_FAILED_ATTEMPTS:
+                    new_lock_time = (
+                        datetime.now(timezone.utc) + timedelta(minutes=LOCKOUT_MINUTES)
+                    ).isoformat()
+                    failed_attempts = 0
+
+                conn.execute(
+                    """
+                    UPDATE users
+                    SET failed_attempts = ?, locked_until = ?
+                    WHERE id = ?
+                    """,
+                    (failed_attempts, new_lock_time, row["id"]),
+                )
+                conn.commit()
+                return AuthResult(success=False, message="Employee ID or password is incorrect.")
+
+            approval_status = str(row["approval_status"] or APPROVAL_PENDING)
+            if approval_status == APPROVAL_PENDING:
                 return AuthResult(
                     success=False,
-                    message="Account temporarily locked due to repeated failed logins.",
+                    message=PENDING_LOGIN_MESSAGE,
+                    approval_status=APPROVAL_PENDING,
                 )
 
-        if not _verify_password(password, row["password_hash"]):
-            failed_attempts = int(row["failed_attempts"]) + 1
-            new_lock_time = None
-            if failed_attempts >= MAX_FAILED_ATTEMPTS:
-                new_lock_time = (datetime.now(timezone.utc) + timedelta(minutes=LOCKOUT_MINUTES)).isoformat()
-                failed_attempts = 0
+            if approval_status == APPROVAL_REJECTED:
+                review_reason = str(row["review_reason"] or "").strip()
+                message = REJECTED_LOGIN_MESSAGE
+                if review_reason:
+                    message = f"{message} Reason: {review_reason}"
+                return AuthResult(
+                    success=False,
+                    message=message,
+                    approval_status=APPROVAL_REJECTED,
+                )
 
             conn.execute(
                 """
                 UPDATE users
-                SET failed_attempts = ?, locked_until = ?
+                SET failed_attempts = 0,
+                    locked_until = NULL,
+                    last_login = ?
                 WHERE id = ?
                 """,
-                (failed_attempts, new_lock_time, row["id"]),
+                (_utc_now_iso(), row["id"]),
             )
             conn.commit()
-            return AuthResult(success=False, message="Employee ID or password is incorrect.")
 
-        approval_status = str(row["approval_status"] or APPROVAL_PENDING)
-        if approval_status == APPROVAL_PENDING:
+            role = str(row["role"] or ROLE_USER)
+            if user_scope == USER_SCOPE_ADMIN:
+                role = ROLE_ADMIN
+
             return AuthResult(
-                success=False,
-                message=PENDING_LOGIN_MESSAGE,
-                approval_status=APPROVAL_PENDING,
+                success=True,
+                message="Login successful.",
+                user_id=row["id"],
+                employee_id=row["employee_id"],
+                full_name=row["full_name"],
+                role=role,
+                approval_status=approval_status,
+                email=row["email"],
             )
 
-        if approval_status == APPROVAL_REJECTED:
-            review_reason = str(row["review_reason"] or "").strip()
-            message = REJECTED_LOGIN_MESSAGE
-            if review_reason:
-                message = f"{message} Reason: {review_reason}"
-            return AuthResult(
-                success=False,
-                message=message,
-                approval_status=APPROVAL_REJECTED,
-            )
-
-        conn.execute(
-            """
-            UPDATE users
-            SET failed_attempts = 0,
-                locked_until = NULL,
-                last_login = ?
-            WHERE id = ?
-            """,
-            (_utc_now_iso(), row["id"]),
-        )
-        conn.commit()
-
-        return AuthResult(
-            success=True,
-            message="Login successful.",
-            user_id=row["id"],
-            employee_id=row["employee_id"],
-            full_name=row["full_name"],
-            role=str(row["role"] or ROLE_USER),
-            approval_status=approval_status,
-            email=row["email"],
-        )
+    return AuthResult(success=False, message="Employee ID or password is incorrect.")
 
 
 def _validate_approval_status(approval_status: str) -> str:
@@ -967,116 +1454,197 @@ def _normalize_review_reason(reason: Optional[str]) -> Optional[str]:
     return cleaned or None
 
 
+def get_user_scope_for_role(role: Optional[str]) -> str:
+    if str(role or "").strip().lower() == ROLE_ADMIN:
+        return USER_SCOPE_ADMIN
+    return USER_SCOPE_EMPLOYEE
+
+
+def _normalize_user_scope(scope: Optional[str]) -> str:
+    normalized = str(scope or "any").strip().lower()
+    if normalized not in {"any", USER_SCOPE_EMPLOYEE, USER_SCOPE_ADMIN}:
+        raise ValueError("Invalid user scope.")
+    return normalized
+
+
+def _resolve_admin_reviewer(reviewer_id: int) -> tuple[Optional[str], Optional[str]]:
+    with _admin_connection() as conn:
+        row = conn.execute(
+            "SELECT employee_id, full_name FROM users WHERE id = ?",
+            (int(reviewer_id),),
+        ).fetchone()
+
+    if row is None:
+        return None, None
+    return row["employee_id"], row["full_name"]
+
+
 def _serialize_user_row(row: sqlite3.Row) -> dict:
     payload = dict(row)
     payload["id"] = int(payload["id"])
     payload["failed_attempts"] = int(payload.get("failed_attempts", 0) or 0)
     if payload.get("reviewed_by") is not None:
         payload["reviewed_by"] = int(payload["reviewed_by"])
+        reviewer_employee_id, reviewer_name = _resolve_admin_reviewer(int(payload["reviewed_by"]))
+        payload["reviewer_employee_id"] = reviewer_employee_id
+        payload["reviewer_name"] = reviewer_name
+    else:
+        payload["reviewer_employee_id"] = None
+        payload["reviewer_name"] = None
     return payload
 
 
-def get_user_by_id(user_id: int) -> Optional[dict]:
-    with _connection() as conn:
-        row = conn.execute(
-            """
-            SELECT u.*, reviewer.employee_id AS reviewer_employee_id, reviewer.full_name AS reviewer_name
-            FROM users u
-            LEFT JOIN users reviewer ON reviewer.id = u.reviewed_by
-            WHERE u.id = ?
-            """,
-            (user_id,),
-        ).fetchone()
-
+def _get_user_by_id_from_store(user_id: int, *, scope: str) -> Optional[dict]:
+    connection_factory = _admin_connection if scope == USER_SCOPE_ADMIN else _employee_connection
+    with connection_factory() as conn:
+        row = conn.execute("SELECT * FROM users WHERE id = ?", (int(user_id),)).fetchone()
     if row is None:
         return None
     return _serialize_user_row(row)
 
 
-def get_user_by_employee_id(employee_id: str) -> Optional[dict]:
+def get_user_by_id(user_id: int, *, scope: str = "any") -> Optional[dict]:
+    normalized_scope = _normalize_user_scope(scope)
+    if normalized_scope == USER_SCOPE_EMPLOYEE:
+        return _get_user_by_id_from_store(user_id, scope=USER_SCOPE_EMPLOYEE)
+    if normalized_scope == USER_SCOPE_ADMIN:
+        return _get_user_by_id_from_store(user_id, scope=USER_SCOPE_ADMIN)
+
+    employee_row = _get_user_by_id_from_store(user_id, scope=USER_SCOPE_EMPLOYEE)
+    if employee_row is not None:
+        return employee_row
+    return _get_user_by_id_from_store(user_id, scope=USER_SCOPE_ADMIN)
+
+
+def _get_user_by_employee_id_from_store(employee_id: str, *, scope: str) -> Optional[dict]:
+    connection_factory = _admin_connection if scope == USER_SCOPE_ADMIN else _employee_connection
+    with connection_factory() as conn:
+        row = conn.execute(
+            "SELECT * FROM users WHERE employee_id = ?",
+            (employee_id.strip(),),
+        ).fetchone()
+    if row is None:
+        return None
+    return _serialize_user_row(row)
+
+
+def get_user_by_employee_id(employee_id: str, *, scope: str = "any") -> Optional[dict]:
     cleaned_id = employee_id.strip()
-    with _connection() as conn:
-        row = conn.execute(
-            """
-            SELECT u.*, reviewer.employee_id AS reviewer_employee_id, reviewer.full_name AS reviewer_name
-            FROM users u
-            LEFT JOIN users reviewer ON reviewer.id = u.reviewed_by
-            WHERE u.employee_id = ?
-            """,
-            (cleaned_id,),
-        ).fetchone()
+    normalized_scope = _normalize_user_scope(scope)
+    if normalized_scope == USER_SCOPE_EMPLOYEE:
+        return _get_user_by_employee_id_from_store(cleaned_id, scope=USER_SCOPE_EMPLOYEE)
+    if normalized_scope == USER_SCOPE_ADMIN:
+        return _get_user_by_employee_id_from_store(cleaned_id, scope=USER_SCOPE_ADMIN)
 
-    if row is None:
-        return None
-    return _serialize_user_row(row)
+    employee_row = _get_user_by_employee_id_from_store(cleaned_id, scope=USER_SCOPE_EMPLOYEE)
+    if employee_row is not None:
+        return employee_row
+    return _get_user_by_employee_id_from_store(cleaned_id, scope=USER_SCOPE_ADMIN)
 
 
 def list_users_by_approval_status(approval_status: str, include_admin: bool = False) -> list[dict]:
     normalized_status = _validate_approval_status(approval_status)
 
-    query = """
-        SELECT u.*, reviewer.employee_id AS reviewer_employee_id, reviewer.full_name AS reviewer_name
-        FROM users u
-        LEFT JOIN users reviewer ON reviewer.id = u.reviewed_by
-        WHERE u.approval_status = ?
-    """
-    params: list[object] = [normalized_status]
+    with _employee_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT *
+            FROM users
+            WHERE approval_status = ?
+            ORDER BY created_at ASC
+            """,
+            (normalized_status,),
+        ).fetchall()
 
+    users = [_serialize_user_row(row) for row in rows]
     if not include_admin:
-        query += " AND u.role != ?"
-        params.append(ROLE_ADMIN)
+        return users
 
-    query += " ORDER BY u.created_at ASC"
+    with _admin_connection() as conn:
+        admin_rows = conn.execute(
+            """
+            SELECT *
+            FROM users
+            WHERE role = ? AND approval_status = ?
+            ORDER BY created_at ASC
+            """,
+            (ROLE_ADMIN, normalized_status),
+        ).fetchall()
 
-    with _connection() as conn:
-        rows = conn.execute(query, params).fetchall()
-
-    return [_serialize_user_row(row) for row in rows]
+    merged = users + [_serialize_user_row(row) for row in admin_rows]
+    merged.sort(key=lambda item: str(item.get("created_at") or ""))
+    return merged
 
 
 def list_review_history(limit: int = 100, include_admin: bool = False) -> list[dict]:
     safe_limit = max(1, min(limit, 500))
 
-    query = """
-        SELECT u.*, reviewer.employee_id AS reviewer_employee_id, reviewer.full_name AS reviewer_name
-        FROM users u
-        LEFT JOIN users reviewer ON reviewer.id = u.reviewed_by
-        WHERE u.approval_status IN (?, ?)
-    """
-    params: list[object] = [APPROVAL_APPROVED, APPROVAL_REJECTED]
+    with _employee_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT *
+            FROM users
+            WHERE approval_status IN (?, ?)
+            ORDER BY COALESCE(reviewed_at, created_at) DESC
+            LIMIT ?
+            """,
+            (APPROVAL_APPROVED, APPROVAL_REJECTED, safe_limit),
+        ).fetchall()
 
+    users = [_serialize_user_row(row) for row in rows]
     if not include_admin:
-        query += " AND u.role != ?"
-        params.append(ROLE_ADMIN)
+        return users
 
-    query += " ORDER BY COALESCE(u.reviewed_at, u.created_at) DESC LIMIT ?"
-    params.append(safe_limit)
+    with _admin_connection() as conn:
+        admin_rows = conn.execute(
+            """
+            SELECT *
+            FROM users
+            WHERE role = ? AND approval_status IN (?, ?)
+            ORDER BY COALESCE(reviewed_at, created_at) DESC
+            LIMIT ?
+            """,
+            (ROLE_ADMIN, APPROVAL_APPROVED, APPROVAL_REJECTED, safe_limit),
+        ).fetchall()
 
-    with _connection() as conn:
-        rows = conn.execute(query, params).fetchall()
-
-    return [_serialize_user_row(row) for row in rows]
+    merged = users + [_serialize_user_row(row) for row in admin_rows]
+    merged.sort(
+        key=lambda item: str(item.get("reviewed_at") or item.get("created_at") or ""),
+        reverse=True,
+    )
+    return merged[:safe_limit]
 
 
 def list_active_users(include_admin: bool = False) -> list[dict]:
-    query = """
-        SELECT u.*, reviewer.employee_id AS reviewer_employee_id, reviewer.full_name AS reviewer_name
-        FROM users u
-        LEFT JOIN users reviewer ON reviewer.id = u.reviewed_by
-        WHERE u.approval_status = ?
-    """
-    params: list[object] = [APPROVAL_APPROVED]
+    with _employee_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT *
+            FROM users
+            WHERE approval_status = ?
+            ORDER BY full_name ASC
+            """,
+            (APPROVAL_APPROVED,),
+        ).fetchall()
 
+    users = [_serialize_user_row(row) for row in rows]
     if not include_admin:
-        query += " AND u.role != ?"
-        params.append(ROLE_ADMIN)
+        return users
 
-    query += " ORDER BY u.full_name ASC"
+    with _admin_connection() as conn:
+        admin_rows = conn.execute(
+            """
+            SELECT *
+            FROM users
+            WHERE role = ? AND approval_status = ?
+            ORDER BY full_name ASC
+            """,
+            (ROLE_ADMIN, APPROVAL_APPROVED),
+        ).fetchall()
 
-    with _connection() as conn:
-        rows = conn.execute(query, params).fetchall()
-
-    return [_serialize_user_row(row) for row in rows]
+    merged = users + [_serialize_user_row(row) for row in admin_rows]
+    merged.sort(key=lambda item: str(item.get("full_name") or "").lower())
+    return merged
 
 
 def review_user_account(
@@ -1091,7 +1659,7 @@ def review_user_account(
 
     normalized_reason = _normalize_review_reason(review_reason)
 
-    with _connection() as conn:
+    with _employee_connection() as conn:
         target = conn.execute(
             "SELECT id, role FROM users WHERE id = ?",
             (user_id,),
@@ -1099,17 +1667,18 @@ def review_user_account(
         if target is None:
             raise LookupError("User not found.")
 
-        reviewer = conn.execute(
-            "SELECT id, role FROM users WHERE id = ?",
-            (reviewed_by,),
-        ).fetchone()
-        if reviewer is None:
-            raise LookupError("Reviewer not found.")
-        if str(reviewer["role"] or ROLE_USER) != ROLE_ADMIN:
-            raise PermissionError("Only admins can review user accounts.")
-
         if str(target["role"] or ROLE_USER) == ROLE_ADMIN:
             raise PermissionError("Admin account status cannot be modified.")
+
+        with _admin_connection() as admin_conn:
+            reviewer = admin_conn.execute(
+                "SELECT id, role FROM users WHERE id = ?",
+                (reviewed_by,),
+            ).fetchone()
+            if reviewer is None:
+                raise LookupError("Reviewer not found.")
+            if str(reviewer["role"] or ROLE_USER) != ROLE_ADMIN:
+                raise PermissionError("Only admins can review user accounts.")
 
         conn.execute(
             """
@@ -1163,7 +1732,7 @@ def set_user_approval_status(
     cleaned_employee_id = employee_id.strip()
     normalized_reason = _normalize_review_reason(review_reason)
 
-    with _connection() as conn:
+    with _employee_connection() as conn:
         cursor = conn.execute(
             """
             UPDATE users
@@ -1212,7 +1781,7 @@ def create_ingestion_job(created_by: int, total_files: int) -> dict:
     job_id = secrets.token_urlsafe(18)
     safe_total_files = max(0, int(total_files))
 
-    with _connection() as conn:
+    with _admin_connection() as conn:
         conn.execute(
             """
             INSERT INTO ingestion_jobs (
@@ -1250,7 +1819,7 @@ def create_ingestion_job(created_by: int, total_files: int) -> dict:
 
 
 def get_ingestion_job(job_id: str) -> Optional[dict]:
-    with _connection() as conn:
+    with _admin_connection() as conn:
         row = conn.execute(
             """
             SELECT j.*, u.employee_id AS created_by_employee_id, u.full_name AS created_by_name
@@ -1268,7 +1837,7 @@ def get_ingestion_job(job_id: str) -> Optional[dict]:
 
 def list_recent_ingestion_jobs(limit: int = 20) -> list[dict]:
     safe_limit = max(1, min(limit, 200))
-    with _connection() as conn:
+    with _admin_connection() as conn:
         rows = conn.execute(
             """
             SELECT j.*, u.employee_id AS created_by_employee_id, u.full_name AS created_by_name
@@ -1322,7 +1891,7 @@ def update_ingestion_job(
     params = list(updates.values())
     params.append(job_id)
 
-    with _connection() as conn:
+    with _admin_connection() as conn:
         cursor = conn.execute(
             f"UPDATE ingestion_jobs SET {assignments} WHERE job_id = ?",
             params,
@@ -1358,7 +1927,7 @@ def create_backfill_job(created_by: int, total_documents: int = 0) -> dict:
     job_id = secrets.token_urlsafe(18)
     safe_total_documents = max(0, int(total_documents))
 
-    with _connection() as conn:
+    with _admin_connection() as conn:
         conn.execute(
             """
             INSERT INTO backfill_jobs (
@@ -1396,7 +1965,7 @@ def create_backfill_job(created_by: int, total_documents: int = 0) -> dict:
 
 
 def get_backfill_job(job_id: str) -> Optional[dict]:
-    with _connection() as conn:
+    with _admin_connection() as conn:
         row = conn.execute(
             """
             SELECT j.*, u.employee_id AS created_by_employee_id, u.full_name AS created_by_name
@@ -1414,7 +1983,7 @@ def get_backfill_job(job_id: str) -> Optional[dict]:
 
 def list_recent_backfill_jobs(limit: int = 20) -> list[dict]:
     safe_limit = max(1, min(limit, 200))
-    with _connection() as conn:
+    with _admin_connection() as conn:
         rows = conn.execute(
             """
             SELECT j.*, u.employee_id AS created_by_employee_id, u.full_name AS created_by_name
@@ -1473,7 +2042,7 @@ def update_backfill_job(
     params = list(updates.values())
     params.append(job_id)
 
-    with _connection() as conn:
+    with _admin_connection() as conn:
         cursor = conn.execute(
             f"UPDATE backfill_jobs SET {assignments} WHERE job_id = ?",
             params,
@@ -1524,7 +2093,7 @@ def create_summary_job(
     safe_retry_after = max(0, int(retry_after_seconds))
     safe_batch_size = max(0, int(batch_size))
 
-    with _connection() as conn:
+    with _admin_connection() as conn:
         conn.execute(
             """
             INSERT INTO summary_jobs (
@@ -1568,7 +2137,7 @@ def create_summary_job(
 
 
 def get_summary_job(job_id: str) -> Optional[dict]:
-    with _connection() as conn:
+    with _admin_connection() as conn:
         row = conn.execute(
             """
             SELECT j.*, u.employee_id AS created_by_employee_id, u.full_name AS created_by_name
@@ -1586,7 +2155,7 @@ def get_summary_job(job_id: str) -> Optional[dict]:
 
 def list_recent_summary_jobs(limit: int = 20) -> list[dict]:
     safe_limit = max(1, min(limit, 200))
-    with _connection() as conn:
+    with _admin_connection() as conn:
         rows = conn.execute(
             """
             SELECT j.*, u.employee_id AS created_by_employee_id, u.full_name AS created_by_name
@@ -1654,7 +2223,7 @@ def update_summary_job(
     params = list(updates.values())
     params.append(job_id)
 
-    with _connection() as conn:
+    with _admin_connection() as conn:
         cursor = conn.execute(
             f"UPDATE summary_jobs SET {assignments} WHERE job_id = ?",
             params,
@@ -1668,7 +2237,7 @@ def count_documents_for_summary(*, include_failed: bool = True, retry_after_seco
     now = datetime.now(timezone.utc)
     failed_cutoff_iso = (now - timedelta(seconds=safe_retry_after)).isoformat()
 
-    with _connection() as conn:
+    with _admin_connection() as conn:
         if include_failed:
             row = conn.execute(
                 """
@@ -1848,7 +2417,7 @@ def append_document_audit_log(
     reason: Optional[str] = None,
     payload: Optional[dict] = None,
 ) -> int:
-    with _connection() as conn:
+    with _admin_connection() as conn:
         row = conn.execute(
             "SELECT id FROM documents WHERE id = ?",
             (int(document_id),),
@@ -1903,7 +2472,7 @@ def upsert_document_registry_entry(
     metadata_json = _serialize_metadata_json(metadata)
     now_iso = _utc_now_iso()
 
-    with _connection() as conn:
+    with _admin_connection() as conn:
         existing = conn.execute(
             "SELECT id FROM documents WHERE document_key = ?",
             (normalized_key,),
@@ -2036,7 +2605,7 @@ def get_document_by_id(document_id: int, *, include_deleted: bool = False) -> Op
     if not include_deleted:
         query += " AND d.is_deleted = 0"
 
-    with _connection() as conn:
+    with _admin_connection() as conn:
         row = conn.execute(query, params).fetchone()
 
     if row is None:
@@ -2057,7 +2626,7 @@ def get_document_by_key(document_key: str, *, include_deleted: bool = False) -> 
     if not include_deleted:
         query += " AND d.is_deleted = 0"
 
-    with _connection() as conn:
+    with _admin_connection() as conn:
         row = conn.execute(query, params).fetchone()
 
     if row is None:
@@ -2094,7 +2663,7 @@ def list_documents(
     query += " ORDER BY d.updated_at DESC, d.id DESC LIMIT ? OFFSET ?"
     params.extend([safe_limit, safe_offset])
 
-    with _connection() as conn:
+    with _admin_connection() as conn:
         rows = conn.execute(query, params).fetchall()
 
     return [_serialize_document_row(row) for row in rows]
@@ -2188,7 +2757,7 @@ def list_documents_for_admin(
     params.extend([safe_limit, safe_offset])
 
     query = "".join(query_parts)
-    with _connection() as conn:
+    with _admin_connection() as conn:
         rows = conn.execute(query, params).fetchall()
 
     return [_serialize_document_row(row) for row in rows]
@@ -2218,7 +2787,7 @@ def count_documents_for_admin(
     )
 
     query = "".join(query_parts)
-    with _connection() as conn:
+    with _admin_connection() as conn:
         row = conn.execute(query, params).fetchone()
 
     return int((row["total"] if row is not None else 0) or 0)
@@ -2240,7 +2809,7 @@ def requeue_running_document_summaries(
 
     updated_count = 0
 
-    with _connection() as conn:
+    with _admin_connection() as conn:
         rows = conn.execute(
             """
             SELECT id, summary_error
@@ -2310,7 +2879,7 @@ def claim_next_document_for_summary(
     failed_cutoff_iso = (now - timedelta(seconds=safe_retry_after)).isoformat()
     normalized_reason = _normalize_optional_text(audit_reason) or "Summary worker claimed document."
 
-    with _connection() as conn:
+    with _admin_connection() as conn:
         conn.execute("BEGIN IMMEDIATE")
 
         if include_failed:
@@ -2466,7 +3035,7 @@ def update_document_registry_metadata(
     params = list(updates.values())
     params.append(int(document_id))
 
-    with _connection() as conn:
+    with _admin_connection() as conn:
         cursor = conn.execute(
             f"UPDATE documents SET {assignments} WHERE id = ? AND is_deleted = 0",
             params,
@@ -2525,7 +3094,7 @@ def update_document_summary(
     params = list(updates.values())
     params.append(int(document_id))
 
-    with _connection() as conn:
+    with _admin_connection() as conn:
         cursor = conn.execute(
             f"UPDATE documents SET {assignments} WHERE id = ? AND is_deleted = 0",
             params,
@@ -2556,7 +3125,7 @@ def soft_delete_document(
     now_iso = _utc_now_iso()
     normalized_reason = _normalize_optional_text(deleted_reason)
 
-    with _connection() as conn:
+    with _admin_connection() as conn:
         cursor = conn.execute(
             """
             UPDATE documents
@@ -2597,7 +3166,7 @@ def soft_delete_document(
 
 def list_document_audit_log(document_id: int, *, limit: int = 100) -> list[dict]:
     safe_limit = max(1, min(limit, 500))
-    with _connection() as conn:
+    with _admin_connection() as conn:
         rows = conn.execute(
             """
             SELECT a.*, actor.employee_id AS actor_employee_id, actor.full_name AS actor_name
@@ -2797,7 +3366,7 @@ def bootstrap_admin_user() -> AuthResult:
     if validation_error:
         return AuthResult(success=False, message=f"Admin bootstrap failed: {validation_error}")
 
-    with _connection() as conn:
+    with _admin_connection() as conn:
         row = conn.execute(
             "SELECT id, password_hash FROM users WHERE employee_id = ?",
             (admin_employee_id,),

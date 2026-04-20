@@ -7,7 +7,10 @@ SAARTHI is a FastAPI backend plus React frontend application for regulatory Q&A 
 - Backend: FastAPI
 - Frontend: React + TypeScript + Vite
 - Retrieval: FAISS + LangChain + Ollama
-- Persistence: SQLite (`data/saarthi_secure.db`)
+- Persistence: SQLite split stores
+	- Employee DB: `data/shared/saarthi_employee.db`
+	- Admin DB: `data/shared/saarthi_admin.db`
+	- Session DB: `data/shared/saarthi_sessions.db`
 
 ## Prerequisites
 
@@ -113,7 +116,20 @@ Additional admin bootstrap variables:
 - `SAARTHI_ADMIN_PASSWORD`
 - `SAARTHI_ADMIN_EMAIL`
 
+Database path controls:
+
+- `SAARTHI_EMPLOYEE_DB_PATH`
+- `SAARTHI_ADMIN_DB_PATH`
+- `SAARTHI_SESSION_DB_PATH`
+
 At backend startup, the bootstrap admin is enforced to role `admin` and approval status `approved`.
+
+## Shared Data Consistency
+
+- Employee profiles, approvals, and chat history are persisted in the Employee DB.
+- Admin credentials and admin operational records (ingestion/backfill/summary/document registry) are persisted in the Admin DB.
+- API login sessions are persisted in the Session DB.
+- Legacy combined database (`data/saarthi_secure.db`) is migrated automatically on startup.
 
 ## User Approval Workflow
 

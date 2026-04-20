@@ -28,6 +28,9 @@ Important runtime controls:
 - SAARTHI_READINESS_REQUIRE_VECTOR_INDEX
 - SAARTHI_CORS_ALLOWED_ORIGINS
 - SAARTHI_TRUSTED_HOSTS
+- SAARTHI_EMPLOYEE_DB_PATH
+- SAARTHI_ADMIN_DB_PATH
+- SAARTHI_SESSION_DB_PATH
 - SAARTHI_ADMIN_EMPLOYEE_ID
 - SAARTHI_ADMIN_NAME
 - SAARTHI_ADMIN_PASSWORD
@@ -101,6 +104,9 @@ RAG and Temporal:
 - New registrations are created in `pending` state by default.
 - Pending and rejected users cannot log in until an admin updates review status.
 - Bootstrap admin user is always forced to role `admin` and approval status `approved` at startup.
+- Employee records and chat conversations are stored in the Employee DB.
+- Admin credentials and admin operational entities are stored in the Admin DB.
+- API sessions are stored in the Session DB.
 - Upload ingestion enforces PDF extension/content-type/size checks and updates a persistent progress job.
 - If email delivery fails, approval/rejection still succeeds and the API response includes a warning.
 

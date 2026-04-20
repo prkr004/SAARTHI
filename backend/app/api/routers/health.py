@@ -6,7 +6,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, status
 
-from chat_store import DB_PATH, initialize_db
+from chat_store import get_database_paths, initialize_db
 
 from backend.app.core.config import get_settings
 from backend.app.schemas.common import HealthStatus
@@ -31,18 +31,31 @@ def ready() -> HealthStatus:
     settings = get_settings()
     checks: dict[str, str] = {
         "database": "pending",
+        "employee_database": "pending",
+        "admin_database": "pending",
         "session_store": "pending",
         "vector_index": "skipped",
     }
 
     try:
         initialize_db()
-        checks["database"] = "ok"
+        db_paths = get_database_paths()
+        employee_db = db_paths["employee"]
+        admin_db = db_paths["admin"]
+        session_db = db_paths["session"]
 
-        if not DB_PATH.exists():
-            raise RuntimeError(f"Database file missing at {DB_PATH}")
+        if not employee_db.exists():
+            raise RuntimeError(f"Employee database file missing at {employee_db}")
+        if not admin_db.exists():
+            raise RuntimeError(f"Admin database file missing at {admin_db}")
+
+        checks["database"] = "ok"
+        checks["employee_database"] = "ok"
+        checks["admin_database"] = "ok"
 
         initialize_session_store()
+        if not session_db.exists():
+            raise RuntimeError(f"Session database file missing at {session_db}")
         checks["session_store"] = "ok"
 
         if settings.readiness_require_vector_index:

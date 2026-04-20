@@ -22,16 +22,25 @@ def _utc_now_iso() -> str:
 
 
 def _connection() -> sqlite3.Connection:
-    db_path = chat_store.DB_PATH
+    db_path = chat_store.get_session_db_path()
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(db_path, timeout=30)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA journal_mode = WAL")
+    conn.execute("PRAGMA synchronous = NORMAL")
+    conn.execute("PRAGMA busy_timeout = 5000")
     return conn
 
 
 def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _normalize_user_scope(user_scope: str) -> str:
+    normalized = str(user_scope or "").strip().lower()
+    if normalized not in {chat_store.USER_SCOPE_EMPLOYEE, chat_store.USER_SCOPE_ADMIN}:
+        raise ValueError("Invalid user scope.")
+    return normalized
 
 
 def initialize_session_store() -> None:
@@ -43,18 +52,34 @@ def initialize_session_store() -> None:
             CREATE TABLE IF NOT EXISTS api_sessions (
                 token_hash TEXT PRIMARY KEY,
                 user_id INTEGER NOT NULL,
+                user_scope TEXT NOT NULL DEFAULT 'employee',
                 created_at TEXT NOT NULL,
                 expires_at TEXT NOT NULL,
                 revoked_at TEXT,
-                user_agent TEXT,
-                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+                user_agent TEXT
             )
+            """
+        )
+        columns = {
+            str(item["name"]).lower()
+            for item in conn.execute("PRAGMA table_info(api_sessions)").fetchall()
+        }
+        if "user_scope" not in columns:
+            conn.execute(
+                "ALTER TABLE api_sessions ADD COLUMN user_scope TEXT NOT NULL DEFAULT 'employee'"
+            )
+
+        conn.execute(
+            """
+            UPDATE api_sessions
+            SET user_scope = 'employee'
+            WHERE user_scope IS NULL OR TRIM(user_scope) = ''
             """
         )
         conn.execute(
             """
-            CREATE INDEX IF NOT EXISTS idx_api_sessions_user_id
-            ON api_sessions(user_id)
+            CREATE INDEX IF NOT EXISTS idx_api_sessions_scope_user_id
+            ON api_sessions(user_scope, user_id)
             """
         )
         conn.execute(
@@ -66,22 +91,28 @@ def initialize_session_store() -> None:
         conn.commit()
 
 
-def create_session(user_id: int, user_agent: Optional[str] = None) -> tuple[str, datetime]:
+def create_session(
+    user_id: int,
+    user_scope: str,
+    user_agent: Optional[str] = None,
+) -> tuple[str, datetime]:
     """Create an opaque bearer token and persist hashed value in SQLite."""
 
     settings = get_settings()
     token = secrets.token_urlsafe(settings.session_token_bytes)
     expires_at = _utc_now() + timedelta(minutes=settings.access_token_ttl_minutes)
+    normalized_scope = _normalize_user_scope(user_scope)
 
     with _connection() as conn:
         conn.execute(
             """
-            INSERT INTO api_sessions (token_hash, user_id, created_at, expires_at, user_agent)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO api_sessions (token_hash, user_id, user_scope, created_at, expires_at, user_agent)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
             (
                 _hash_token(token),
                 user_id,
+                normalized_scope,
                 _utc_now_iso(),
                 expires_at.isoformat(),
                 (user_agent or "")[:255],
@@ -96,6 +127,7 @@ def create_session(user_id: int, user_agent: Optional[str] = None) -> tuple[str,
                 SELECT token_hash
                 FROM api_sessions
                 WHERE user_id = ?
+                                    AND user_scope = ?
                   AND revoked_at IS NULL
                   AND expires_at > ?
                 ORDER BY created_at DESC
@@ -107,6 +139,7 @@ def create_session(user_id: int, user_agent: Optional[str] = None) -> tuple[str,
             """,
             (
                 user_id,
+                normalized_scope,
                 now_iso,
                 settings.session_max_active_per_user,
                 now_iso,
@@ -124,26 +157,18 @@ def get_session_user(token: str) -> Optional[dict]:
     now_iso = _utc_now_iso()
 
     with _connection() as conn:
-        row = conn.execute(
+        session_row = conn.execute(
             """
-                        SELECT
-                                u.id AS user_id,
-                                u.employee_id,
-                                u.full_name,
-                                u.role,
-                                u.approval_status,
-                                u.email,
-                                s.expires_at
-            FROM api_sessions s
-            INNER JOIN users u ON u.id = s.user_id
-            WHERE s.token_hash = ?
-              AND s.revoked_at IS NULL
-              AND s.expires_at > ?
+            SELECT user_id, user_scope
+            FROM api_sessions
+            WHERE token_hash = ?
+              AND revoked_at IS NULL
+              AND expires_at > ?
             """,
             (token_hash, now_iso),
         ).fetchone()
 
-        if row is None:
+        if session_row is None:
             conn.execute(
                 """
                 UPDATE api_sessions
@@ -157,14 +182,20 @@ def get_session_user(token: str) -> Optional[dict]:
             conn.commit()
             return None
 
-        return {
-            "user_id": int(row["user_id"]),
-            "employee_id": row["employee_id"],
-            "full_name": row["full_name"],
-            "role": row["role"],
-            "approval_status": row["approval_status"],
-            "email": row["email"],
-        }
+    user_scope = _normalize_user_scope(str(session_row["user_scope"]))
+    user = chat_store.get_user_by_id(int(session_row["user_id"]), scope=user_scope)
+    if user is None:
+        revoke_session(token)
+        return None
+
+    return {
+        "user_id": int(user["id"]),
+        "employee_id": user["employee_id"],
+        "full_name": user["full_name"],
+        "role": user["role"],
+        "approval_status": user["approval_status"],
+        "email": user.get("email"),
+    }
 
 
 def revoke_session(token: str) -> bool:

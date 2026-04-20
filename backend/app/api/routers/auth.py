@@ -8,6 +8,7 @@ from chat_store import (
     APPROVAL_PENDING,
     APPROVAL_REJECTED,
     authenticate_user,
+    get_user_scope_for_role,
     register_user,
 )
 
@@ -47,6 +48,7 @@ def login(payload: LoginRequest, request: Request) -> AuthTokenResponse:
 
     token, expires_at = create_session(
         user_id=result.user_id,
+        user_scope=get_user_scope_for_role(result.role),
         user_agent=request.headers.get("user-agent"),
     )
 
