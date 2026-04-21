@@ -40,6 +40,16 @@ else:
     _DOCX_IMPORT_ERROR = None
 
 _TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+_BRAND_LOGO_CANDIDATES = (
+    _PROJECT_ROOT / "saarthi logo_transparent.png",
+    _PROJECT_ROOT / "saarthi_logo.png",
+)
+_BRAND_NAME = "SAARTHI"
+_BRAND_TAGLINE = (
+    "An AI-Powered Regulatory Intelligence and Compliance Assistance "
+    "System for the Indian BFSI Sector"
+)
 
 
 def template_path(document_type: str) -> Path:
@@ -117,6 +127,31 @@ def _hide_table_borders(table) -> None:
     tbl_pr.append(borders)
 
 
+def _first_existing_path(candidates: tuple[Path, ...]) -> Path | None:
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _apply_bottom_divider(paragraph, *, color: str = "7A8596", size: str = "6") -> None:
+    p_pr = paragraph._p.get_or_add_pPr()
+    p_bdr = p_pr.find(qn("w:pBdr"))
+    if p_bdr is None:
+        p_bdr = OxmlElement("w:pBdr")
+        p_pr.append(p_bdr)
+
+    bottom = p_bdr.find(qn("w:bottom"))
+    if bottom is None:
+        bottom = OxmlElement("w:bottom")
+        p_bdr.append(bottom)
+
+    bottom.set(qn("w:val"), "single")
+    bottom.set(qn("w:sz"), size)
+    bottom.set(qn("w:space"), "1")
+    bottom.set(qn("w:color"), color)
+
+
 def _configure_document(document) -> None:
     section = document.sections[0]
     section.top_margin = Inches(0.8)
@@ -129,12 +164,39 @@ def _configure_document(document) -> None:
     normal_style.font.size = Pt(11)
 
 
-def _add_letterhead(document) -> None:
-    paragraph = document.add_paragraph()
-    paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = paragraph.add_run("BANKING REGULATORY AUTHORITY")
-    _set_font(run, size=14, bold=True)
-    _set_paragraph_spacing(paragraph, after=12)
+def _add_brand_header(document) -> None:
+    table = document.add_table(rows=1, cols=3)
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    table.autofit = True
+    _hide_table_borders(table)
+
+    center_cell = table.cell(0, 1)
+    logo_path = _first_existing_path(_BRAND_LOGO_CANDIDATES)
+
+    if logo_path is not None:
+        logo_paragraph = center_cell.paragraphs[0]
+        logo_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        logo_run = logo_paragraph.add_run()
+        logo_run.add_picture(str(logo_path), width=Inches(1.1))
+        _set_paragraph_spacing(logo_paragraph, after=4)
+    else:
+        center_cell.text = ""
+
+    name_paragraph = center_cell.add_paragraph()
+    name_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    name_run = name_paragraph.add_run(_BRAND_NAME)
+    _set_font(name_run, size=16, bold=True)
+    _set_paragraph_spacing(name_paragraph, after=2)
+
+    tagline_paragraph = center_cell.add_paragraph()
+    tagline_paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    tagline_run = tagline_paragraph.add_run(_BRAND_TAGLINE)
+    _set_font(tagline_run, size=9)
+    _set_paragraph_spacing(tagline_paragraph, after=8, line=1.1)
+
+    divider = document.add_paragraph()
+    _apply_bottom_divider(divider)
+    _set_paragraph_spacing(divider, after=10)
 
 
 def _add_header_table(
@@ -223,7 +285,7 @@ def generate_circular_docx(data: CircularDraft) -> BytesIO:
     _require_docx()
     document = Document()
     _configure_document(document)
-    _add_letterhead(document)
+    _add_brand_header(document)
     _add_header_table(
         document,
         left_top=f"Reference No: {data.reference_number}",
@@ -254,7 +316,7 @@ def generate_advisory_docx(data: AdvisoryDraft) -> BytesIO:
     _require_docx()
     document = Document()
     _configure_document(document)
-    _add_letterhead(document)
+    _add_brand_header(document)
     _add_header_table(
         document,
         left_top=f"Priority: {data.priority_level}",
@@ -282,7 +344,7 @@ def generate_press_release_docx(data: PressReleaseDraft) -> BytesIO:
     _require_docx()
     document = Document()
     _configure_document(document)
-    _add_letterhead(document)
+    _add_brand_header(document)
 
     immediate = document.add_paragraph()
     immediate.alignment = WD_ALIGN_PARAGRAPH.CENTER
