@@ -2,20 +2,22 @@ import { storage } from "../storage";
 
 type HttpMethod = "GET" | "POST" | "PATCH" | "DELETE";
 
-interface RequestOptions {
+export interface RequestOptions {
   method?: HttpMethod;
   body?: unknown;
   requiresAuth?: boolean;
   retries?: number;
   timeoutMs?: number;
+  signal?: AbortSignal;
 }
 
-interface BinaryRequestOptions {
+export interface BinaryRequestOptions {
   method?: HttpMethod;
   body?: unknown;
   requiresAuth?: boolean;
   retries?: number;
   timeoutMs?: number;
+  signal?: AbortSignal;
 }
 
 interface ErrorShape {
@@ -65,6 +67,7 @@ export class ApiClient {
       requiresAuth = true,
       retries = 1,
       timeoutMs = 30000,
+      signal,
     } = options;
 
     let lastError: unknown;
@@ -72,6 +75,13 @@ export class ApiClient {
     for (let attempt = 0; attempt <= retries; attempt += 1) {
       const controller = new AbortController();
       const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+      const abortFromCaller = () => controller.abort();
+
+      if (signal?.aborted) {
+        controller.abort();
+      } else {
+        signal?.addEventListener("abort", abortFromCaller, { once: true });
+      }
 
       try {
         const headers: Record<string, string> = {
@@ -93,6 +103,7 @@ export class ApiClient {
         });
 
         window.clearTimeout(timeout);
+        signal?.removeEventListener("abort", abortFromCaller);
 
         const contentType = response.headers.get("content-type") ?? "";
         const responseBody = contentType.includes("application/json")
@@ -111,10 +122,16 @@ export class ApiClient {
         return responseBody as T;
       } catch (error) {
         window.clearTimeout(timeout);
+        signal?.removeEventListener("abort", abortFromCaller);
         lastError = error;
 
         const isAbortError = error instanceof DOMException && error.name === "AbortError";
-        const isTransientNetworkError = error instanceof TypeError || isAbortError;
+        const abortedByCaller = Boolean(signal?.aborted);
+        const isTransientNetworkError = error instanceof TypeError || (isAbortError && !abortedByCaller);
+
+        if (abortedByCaller) {
+          throw new ApiClientError("Request aborted.", 499, "request_aborted");
+        }
 
         if (isTransientNetworkError && attempt < retries) {
           await sleep(250 * (attempt + 1));
@@ -141,6 +158,7 @@ export class ApiClient {
       requiresAuth = true,
       retries = 1,
       timeoutMs = 30000,
+      signal,
     } = options;
 
     let lastError: unknown;
@@ -148,6 +166,13 @@ export class ApiClient {
     for (let attempt = 0; attempt <= retries; attempt += 1) {
       const controller = new AbortController();
       const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+      const abortFromCaller = () => controller.abort();
+
+      if (signal?.aborted) {
+        controller.abort();
+      } else {
+        signal?.addEventListener("abort", abortFromCaller, { once: true });
+      }
 
       try {
         const headers: Record<string, string> = {};
@@ -171,6 +196,7 @@ export class ApiClient {
         });
 
         window.clearTimeout(timeout);
+        signal?.removeEventListener("abort", abortFromCaller);
 
         if (!response.ok) {
           if (shouldRetry(response.status) && attempt < retries) {
@@ -186,10 +212,16 @@ export class ApiClient {
         return response;
       } catch (error) {
         window.clearTimeout(timeout);
+        signal?.removeEventListener("abort", abortFromCaller);
         lastError = error;
 
         const isAbortError = error instanceof DOMException && error.name === "AbortError";
-        const isTransientNetworkError = error instanceof TypeError || isAbortError;
+        const abortedByCaller = Boolean(signal?.aborted);
+        const isTransientNetworkError = error instanceof TypeError || (isAbortError && !abortedByCaller);
+
+        if (abortedByCaller) {
+          throw new ApiClientError("Request aborted.", 499, "request_aborted");
+        }
 
         if (isTransientNetworkError && attempt < retries) {
           await sleep(250 * (attempt + 1));
@@ -215,6 +247,7 @@ export class ApiClient {
       requiresAuth = true,
       retries = 1,
       timeoutMs = 30000,
+      signal,
     } = options;
 
     let lastError: unknown;
@@ -222,6 +255,13 @@ export class ApiClient {
     for (let attempt = 0; attempt <= retries; attempt += 1) {
       const controller = new AbortController();
       const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+      const abortFromCaller = () => controller.abort();
+
+      if (signal?.aborted) {
+        controller.abort();
+      } else {
+        signal?.addEventListener("abort", abortFromCaller, { once: true });
+      }
 
       try {
         const headers: Record<string, string> = {};
@@ -241,6 +281,7 @@ export class ApiClient {
         });
 
         window.clearTimeout(timeout);
+        signal?.removeEventListener("abort", abortFromCaller);
 
         const contentType = response.headers.get("content-type") ?? "";
         const responseBody = contentType.includes("application/json")
@@ -259,10 +300,16 @@ export class ApiClient {
         return responseBody as T;
       } catch (error) {
         window.clearTimeout(timeout);
+        signal?.removeEventListener("abort", abortFromCaller);
         lastError = error;
 
         const isAbortError = error instanceof DOMException && error.name === "AbortError";
-        const isTransientNetworkError = error instanceof TypeError || isAbortError;
+        const abortedByCaller = Boolean(signal?.aborted);
+        const isTransientNetworkError = error instanceof TypeError || (isAbortError && !abortedByCaller);
+
+        if (abortedByCaller) {
+          throw new ApiClientError("Request aborted.", 499, "request_aborted");
+        }
 
         if (isTransientNetworkError && attempt < retries) {
           await sleep(250 * (attempt + 1));

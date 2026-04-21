@@ -115,6 +115,7 @@ export function ChatPage() {
   const [error, setError] = useState<string | null>(null);
 
   const scrollAnchorRef = useRef<HTMLDivElement | null>(null);
+  const activeRequestAbortRef = useRef<AbortController | null>(null);
   const stopRequestedRef = useRef(false);
 
   const hasMessages = messages.length > 0;
@@ -345,12 +346,16 @@ export function ChatPage() {
         sources: [],
       });
 
+      const requestController = new AbortController();
+      activeRequestAbortRef.current = requestController;
+
       const response = await api.askTemporal({
         question: trimmedQuestion,
         model_id: selectedModel || undefined,
         top_k: preferences.topK,
         comparison_method: preferences.comparisonMethod,
         mode: toApiAskMode(preferences.responseMode),
+        signal: requestController.signal,
       });
 
       if (stopRequestedRef.current) {
@@ -400,14 +405,17 @@ export function ChatPage() {
         setError(message);
       }
     } finally {
+      activeRequestAbortRef.current = null;
       setSending(false);
     }
   }
 
   function handleStop() {
     stopRequestedRef.current = true;
+    activeRequestAbortRef.current?.abort();
+    activeRequestAbortRef.current = null;
     setSending(false);
-    setMessages((previous) => previous.filter((message) => !message.pending));
+    setMessages((previous) => previous.map((message) => (message.pending ? { ...message, pending: false } : message)));
   }
 
   async function handleEditMessage(messageId: string, newContent: string) {
@@ -464,166 +472,162 @@ export function ChatPage() {
         />
       }
     >
-      {!showHomeState ? (
-        <header className="workspace-header workspace-header--minimal">
-          <h1>SAARTHI</h1>
+      <div className={`chat-page ${showHomeState ? "chat-page--home" : "chat-page--conversation"}`}>
+        <header className="chat-fixed-header">
+          <p className="chat-fixed-header__title">SAARTHI</p>
+          <button
+            type="button"
+            className="prompt-library-trigger"
+            onClick={() => setPromptLibraryOpen(true)}
+          >
+            Prompt Library
+          </button>
         </header>
-      ) : null}
 
-      {error ? (
-        <p className="notice notice--error" role="alert">
-          {error}
-        </p>
-      ) : null}
-      {notice ? (
-        <p className="notice notice--success" role="status">
-          {notice}
-        </p>
-      ) : null}
-
-      <div className="chat-topbar">
-        <button
-          type="button"
-          className="prompt-library-trigger"
-          onClick={() => setPromptLibraryOpen(true)}
-        >
-          Prompt Library
-        </button>
-      </div>
-
-      <section
-        className={`chat-surface ${preferences.compactChat ? "is-compact" : ""} ${showHomeState ? "chat-surface--home" : "chat-surface--conversation"}`}
-        aria-label="Chat messages"
-        aria-busy={loadingMessages || sending}
-      >
-        {loadingMessages ? (
-          <p className="hint hint--loading" role="status" aria-live="polite">
-            Loading conversation...
+        {error ? (
+          <p className="notice notice--error" role="alert">
+            {error}
+          </p>
+        ) : null}
+        {notice ? (
+          <p className="notice notice--success" role="status">
+            {notice}
           </p>
         ) : null}
 
-        {showHomeState ? (
-          <article className="home-stage" aria-label="SAARTHI home">
-            <p className="home-stage__eyebrow">Namaste, {userDisplayName || "there"}</p>
-            <h2>What should SAARTHI help you review today?</h2>
-            <p className="home-stage__subtext">
-              Ask about RBI circulars, KYC controls, digital lending obligations, or temporal clause changes.
+        <section
+          className={`chat-surface ${preferences.compactChat ? "is-compact" : ""} ${showHomeState ? "chat-surface--home" : "chat-surface--conversation"}`}
+          aria-label="Chat messages"
+          aria-busy={loadingMessages || sending}
+        >
+          {loadingMessages ? (
+            <p className="hint hint--loading" role="status" aria-live="polite">
+              Loading conversation...
             </p>
+          ) : null}
 
-            <div className="home-composer" aria-label="Ask SAARTHI">
+          {showHomeState ? (
+            <article className="home-stage" aria-label="SAARTHI home">
+              <p className="home-stage__eyebrow">Namaste, {userDisplayName || "there"}</p>
+              <h2>What should SAARTHI help you review today?</h2>
+              <p className="home-stage__subtext">
+                Ask about RBI circulars, KYC controls, digital lending obligations, or temporal clause changes.
+              </p>
+
+              <div className="home-composer" aria-label="Ask SAARTHI">
+                <MessageComposer
+                  value={question}
+                  disabled={sending || !activeConversationId}
+                  isBusy={sending}
+                  mode={toApiAskMode(preferences.responseMode)}
+                  onChange={setQuestion}
+                  onModeChange={handleModeChange}
+                  onSubmit={handleSubmitQuestion}
+                  context="home"
+                />
+              </div>
+
+              <section className="home-prompts" aria-label="Suggested prompts">
+                <h3>Suggested starters</h3>
+                <ul className="prompt-chips">
+                  {STARTER_CHIPS.slice(0, 4).map((chip) => (
+                    <li key={chip.label}>
+                      <button type="button" className="prompt-chip" onClick={() => prefillQuestion(chip.full)}>
+                        {chip.label}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            </article>
+          ) : null}
+
+          {!showHomeState ? (
+            <div className="chat-feed chat-feed--conversation" aria-live="polite">
+              {messages.map((message) => (
+                <MessageBubble
+                  key={message.id}
+                  message={message}
+                  showTemporal={preferences.showTemporalDetails}
+                  compactSources={!preferences.showSourceSnippets}
+                  onEdit={handleEditMessage}
+                />
+              ))}
+
+              {sending ? (
+                <article className="message message--assistant message--loading" role="status" aria-live="polite">
+                  <header className="message-head">
+                    <div className="message-head__identity">
+                      <strong className="message-author">SAARTHI</strong>
+                    </div>
+                    <span className="mode-tag">Processing</span>
+                  </header>
+                  <div className="typing-dots" aria-hidden="true">
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                  <div className="message-body">
+                    <p className="message-text">Reviewing indexed circulars and preparing a grounded response...</p>
+                  </div>
+                </article>
+              ) : null}
+
+              <div ref={scrollAnchorRef} />
+            </div>
+          ) : null}
+        </section>
+
+        {promptLibraryOpen ? (
+          <div className="prompt-library-overlay" onClick={() => setPromptLibraryOpen(false)}>
+            <div className="prompt-library-panel" onClick={(event) => event.stopPropagation()}>
+              <div className="prompt-library-header">
+                <h3>Prompt Library</h3>
+                <button type="button" className="prompt-library-close" onClick={() => setPromptLibraryOpen(false)}>
+                  x
+                </button>
+              </div>
+              <div className="prompt-library-scroll">
+                {STARTER_CHIPS.map((chip) => (
+                  <button
+                    key={chip.label}
+                    type="button"
+                    className="prompt-library-item"
+                    onClick={() => {
+                      setPromptLibraryOpen(false);
+                      prefillQuestion(chip.full);
+                    }}
+                  >
+                    <span className="prompt-library-item__label">{chip.label}</span>
+                    <span className="prompt-library-item__full">{chip.full}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {!showHomeState ? (
+          <div className="chat-fixed-footer">
+            <div className="composer-dock composer-dock--conversation">
               <MessageComposer
                 value={question}
-                disabled={sending || !activeConversationId}
+                disabled={!activeConversationId}
                 isBusy={sending}
                 mode={toApiAskMode(preferences.responseMode)}
                 onChange={setQuestion}
                 onModeChange={handleModeChange}
                 onSubmit={handleSubmitQuestion}
-                context="home"
+                onStop={handleStop}
+                context="conversation"
               />
             </div>
-
-            <section className="home-prompts" aria-label="Suggested prompts">
-              <h3>Suggested starters</h3>
-              <ul className="prompt-chips">
-                {STARTER_CHIPS.slice(0, 4).map((chip) => (
-                  <li key={chip.label}>
-                    <button type="button" className="prompt-chip" onClick={() => prefillQuestion(chip.full)}>
-                      {chip.label}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          </article>
-        ) : null}
-
-        {!showHomeState ? (
-          <div className="chat-feed chat-feed--conversation" aria-live="polite">
-            {messages.map((message) => (
-              <MessageBubble
-                key={message.id}
-                message={message}
-                showTemporal={preferences.showTemporalDetails}
-                compactSources={!preferences.showSourceSnippets}
-                onEdit={handleEditMessage}
-              />
-            ))}
-
-            {sending ? (
-              <article className="message message--assistant message--loading" role="status" aria-live="polite">
-                <header className="message-head">
-                  <div className="message-head__identity">
-                    <strong className="message-author">SAARTHI</strong>
-                  </div>
-                  <span className="mode-tag">Processing</span>
-                </header>
-                <div className="typing-dots" aria-hidden="true">
-                  <span />
-                  <span />
-                  <span />
-                </div>
-                <div className="message-body">
-                  <p className="message-text">Reviewing indexed circulars and preparing a grounded response...</p>
-                </div>
-              </article>
-            ) : null}
+            <footer className="workspace-footer">
+              For informational support only. Validate conclusions against official RBI circulars and qualified compliance advice.
+            </footer>
           </div>
         ) : null}
-
-        <div ref={scrollAnchorRef} />
-      </section>
-
-      {promptLibraryOpen ? (
-        <div className="prompt-library-overlay" onClick={() => setPromptLibraryOpen(false)}>
-          <div className="prompt-library-panel" onClick={(event) => event.stopPropagation()}>
-            <div className="prompt-library-header">
-              <h3>Prompt Library</h3>
-              <button type="button" className="prompt-library-close" onClick={() => setPromptLibraryOpen(false)}>
-                x
-              </button>
-            </div>
-            <div className="prompt-library-scroll">
-              {STARTER_CHIPS.map((chip) => (
-                <button
-                  key={chip.label}
-                  type="button"
-                  className="prompt-library-item"
-                  onClick={() => {
-                    setPromptLibraryOpen(false);
-                    prefillQuestion(chip.full);
-                  }}
-                >
-                  <span className="prompt-library-item__label">{chip.label}</span>
-                  <span className="prompt-library-item__full">{chip.full}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {!showHomeState ? (
-        <div className="composer-dock composer-dock--conversation">
-          <MessageComposer
-            value={question}
-            disabled={!activeConversationId}
-            isBusy={sending}
-            mode={toApiAskMode(preferences.responseMode)}
-            onChange={setQuestion}
-            onModeChange={handleModeChange}
-            onSubmit={handleSubmitQuestion}
-            onStop={handleStop}
-            context="conversation"
-          />
-        </div>
-      ) : null}
-
-      {!showHomeState ? (
-        <footer className="workspace-footer">
-          For informational support only. Validate conclusions against official RBI circulars and qualified compliance advice.
-        </footer>
-      ) : null}
+      </div>
     </AppShell>
   );
 }

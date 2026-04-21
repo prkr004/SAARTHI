@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { ConversationSummary } from "../../lib/api/types";
-import saarthiLogo from "../../assets/hero.png";
 
 interface SidebarProps {
   userName: string;
@@ -80,7 +79,7 @@ export function Sidebar({
       <header className="sidebar-brand" aria-label="Workspace navigation">
         <div className="sidebar-brand__row">
           <div className="sidebar-badge">
-            <img src={saarthiLogo} alt="SAARTHI logo" className="sidebar-badge__logo" />
+            <img src="/saarthi_logo.png" alt="SAARTHI logo" className="sidebar-badge__logo" />
           </div>
           <div className="sidebar-brand__label">
             <h2>SAARTHI</h2>

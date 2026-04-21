@@ -41,6 +41,10 @@ interface EnsureDefaultConversationResponse {
   conversation_id: number;
 }
 
+interface AskTemporalRequestWithSignal extends AskTemporalRequest {
+  signal?: AbortSignal;
+}
+
 function unwrapEnvelope<T>(envelope: ApiEnvelope<T>): T {
   if (!envelope.success || envelope.data === null) {
     throw new Error(envelope.error?.message ?? "Unexpected API envelope.");
@@ -122,10 +126,12 @@ export const api = {
     return unwrapEnvelope(response);
   },
 
-  async askTemporal(payload: AskTemporalRequest): Promise<AskResponseData> {
-    const response = await apiClient.post<ApiEnvelope<AskResponseData>>("/chat/ask-temporal", payload, {
+  async askTemporal(payload: AskTemporalRequestWithSignal): Promise<AskResponseData> {
+    const { signal, ...requestPayload } = payload;
+    const response = await apiClient.post<ApiEnvelope<AskResponseData>>("/chat/ask-temporal", requestPayload, {
       retries: 1,
       timeoutMs: 120000,
+      signal,
     });
     return unwrapEnvelope(response);
   },
