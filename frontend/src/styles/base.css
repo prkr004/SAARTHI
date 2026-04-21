@@ -413,27 +413,27 @@ input::placeholder {
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-gutter: stable;
-  padding: 1rem clamp(1rem, 2.2vw, 1.95rem) 0;
+  padding: 1rem clamp(0.8rem, 1.4vw, 1.4rem) 0;
   gap: 0;
 }
 
 .shell-main::-webkit-scrollbar {
-  width: 11px;
+  width: 9px;
 }
 
 .shell-main::-webkit-scrollbar-track {
-  background: color-mix(in srgb, var(--surface-3) 74%, transparent);
+  background: transparent;
 }
 
 .shell-main::-webkit-scrollbar-thumb {
-  background: color-mix(in srgb, var(--ink-soft) 42%, var(--primary) 10%);
+  background: color-mix(in srgb, var(--ink-soft) 22%, transparent);
   border-radius: var(--radius-pill);
   border: 2px solid transparent;
   background-clip: padding-box;
 }
 
 .shell-main::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--ink-soft) 56%, var(--primary) 14%);
+  background: color-mix(in srgb, var(--primary) 36%, var(--ink-soft) 24%);
   background-clip: padding-box;
 }
 
@@ -1066,9 +1066,9 @@ input::placeholder {
 }
 
 .chat-fixed-header {
-  width: min(920px, 100%);
+  width: min(1360px, 97%);
   margin: 0 auto;
-  padding: 0.35rem 0;
+  padding: 0.35rem 1.2rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1103,8 +1103,41 @@ input::placeholder {
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
-  scrollbar-gutter: stable both-edges;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  -ms-overflow-style: none;
   flex: 1 1 auto;
+}
+
+.chat-surface--conversation::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.chat-surface--conversation::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat-surface--conversation::-webkit-scrollbar-thumb {
+  border-radius: var(--radius-pill);
+  border: 2px solid transparent;
+  background: transparent;
+  background-clip: padding-box;
+}
+
+.chat-surface--conversation:hover {
+  scrollbar-color: color-mix(in srgb, var(--primary) 28%, var(--ink-soft) 24%) transparent;
+}
+
+.chat-surface--conversation:hover::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--primary) 28%, var(--ink-soft) 24%);
+  background-clip: padding-box;
+}
+
+.chat-surface--conversation::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--primary) 40%, var(--ink-soft) 28%);
+  background-clip: padding-box;
 }
 
 .chat-feed {
@@ -1115,19 +1148,21 @@ input::placeholder {
 }
 
 .chat-feed--conversation {
-  width: min(920px, 100%);
+  width: min(1360px, 97%);
   margin-inline: auto;
   min-width: 0;
   overflow-x: hidden;
   padding-bottom: 0.2rem;
+  padding-inline: 1.2rem;
 }
 
 .chat-topbar {
   display: flex;
   justify-content: flex-end;
-  width: min(920px, 100%);
+  width: min(1360px, 97%);
   margin-inline: auto;
   margin-bottom: 0.2rem;
+  padding-inline: 1.2rem;
 }
 
 .chat-surface.is-compact .message {
@@ -1136,11 +1171,12 @@ input::placeholder {
 }
 
 .home-stage {
-  width: min(900px, 100%);
+  width: min(1300px, 96%);
   margin-inline: auto;
   display: grid;
   gap: 0.88rem;
   text-align: center;
+  padding-inline: 1.2rem;
 }
 
 .prompt-library-trigger {
@@ -1185,7 +1221,7 @@ input::placeholder {
 }
 
 .home-composer {
-  width: min(760px, 100%);
+  width: min(1100px, 95%);
   margin-inline: auto;
 }
 
@@ -1202,10 +1238,10 @@ input::placeholder {
 }
 
 .chat-fixed-footer {
-  width: min(920px, 100%);
+  width: min(1360px, 97%);
   margin-inline: auto;
   flex-shrink: 0;
-  padding-top: 0.35rem;
+  padding: 0.35rem 1.2rem;
   position: relative;
   z-index: 10;
   background: var(--bg-alt);
@@ -1296,7 +1332,7 @@ input::placeholder {
 }
 
 .home-prompts {
-  width: min(760px, 100%);
+  width: min(1100px, 95%);
   margin-inline: auto;
   display: grid;
   gap: 0.48rem;
@@ -1313,7 +1349,7 @@ input::placeholder {
 
 .prompt-chips {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.45rem;
   margin: 0;
   padding: 0;
