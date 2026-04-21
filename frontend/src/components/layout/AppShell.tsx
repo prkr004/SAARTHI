@@ -5,6 +5,7 @@ interface AppShellProps {
   children: React.ReactNode;
   sidebarOpen: boolean;
   sidebarCollapsed?: boolean;
+  mainClassName?: string;
   onToggleSidebar: () => void;
   onCloseSidebar: () => void;
   onToggleCollapse?: () => void;
@@ -15,6 +16,7 @@ export function AppShell({
   children,
   sidebarOpen,
   sidebarCollapsed = false,
+  mainClassName,
   onToggleSidebar,
   onCloseSidebar,
   onToggleCollapse,
@@ -90,7 +92,7 @@ export function AppShell({
         tabIndex={sidebarOpen ? 0 : -1}
       />
 
-      <main className="shell-main" aria-label="Main workspace">
+      <main className={`shell-main ${mainClassName ?? ""}`.trim()} aria-label="Main workspace">
         {children}
       </main>
     </div>

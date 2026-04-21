@@ -441,6 +441,15 @@ input::placeholder {
   min-width: 0;
 }
 
+.shell-main--chat {
+  height: 100dvh;
+  min-height: 100dvh;
+  max-height: 100dvh;
+  overflow: hidden;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
 .mobile-sidebar-toggle {
   display: none;
   position: fixed;
@@ -1051,22 +1060,23 @@ input::placeholder {
 
 .chat-page--conversation {
   position: relative;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .chat-fixed-header {
   width: min(920px, 100%);
-  margin: 0 auto 0.35rem;
-  padding: 0.1rem 0;
+  margin: 0 auto;
+  padding: 0.35rem 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.8rem;
   flex-shrink: 0;
-  position: sticky;
-  top: 0;
+  position: relative;
   z-index: 10;
-  background: transparent;
-  backdrop-filter: none;
+  background: var(--bg-alt);
   align-self: center;
 }
 
@@ -1089,10 +1099,12 @@ input::placeholder {
 .chat-surface--conversation {
   background: transparent;
   border: none;
-  padding: 0;
-  min-height: unset;
-  overflow: visible;
-  flex: 0 1 auto;
+  padding: 0.35rem 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable both-edges;
+  flex: 1 1 auto;
 }
 
 .chat-feed {
@@ -1107,7 +1119,7 @@ input::placeholder {
   margin-inline: auto;
   min-width: 0;
   overflow-x: hidden;
-  padding-bottom: 0.35rem;
+  padding-bottom: 0.2rem;
 }
 
 .chat-topbar {
@@ -1193,12 +1205,10 @@ input::placeholder {
   width: min(920px, 100%);
   margin-inline: auto;
   flex-shrink: 0;
-  padding-top: 0.4rem;
-  position: sticky;
-  bottom: 0;
+  padding-top: 0.35rem;
+  position: relative;
   z-index: 10;
-  background: transparent;
-  backdrop-filter: none;
+  background: var(--bg-alt);
   align-self: center;
 }
 
@@ -2748,6 +2758,12 @@ input::placeholder {
     padding-inline: clamp(0.8rem, 4vw, 1.15rem);
   }
 
+  .shell-main--chat {
+    overflow: hidden;
+    padding-top: calc(3.7rem + env(safe-area-inset-top));
+    padding-bottom: max(0.35rem, env(safe-area-inset-bottom));
+  }
+
   .drafting-grid,
   .settings-grid {
     grid-template-columns: 1fr;
@@ -2818,7 +2834,9 @@ input::placeholder {
   }
 
   .chat-fixed-header {
-    margin-bottom: 0.25rem;
+    margin-bottom: 0;
+    padding-top: 0.2rem;
+    padding-bottom: 0.3rem;
   }
 
   .chat-fixed-footer {

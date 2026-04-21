@@ -441,6 +441,7 @@ export function ChatPage() {
 
   return (
     <AppShell
+      mainClassName="shell-main--chat"
       sidebarOpen={sidebarOpen}
       sidebarCollapsed={sidebarCollapsed}
       onToggleSidebar={() => setSidebarOpen((current) => !current)}
@@ -513,19 +514,6 @@ export function ChatPage() {
               <p className="home-stage__subtext">
                 Ask about RBI circulars, KYC controls, digital lending obligations, or temporal clause changes.
               </p>
-
-              <div className="home-composer" aria-label="Ask SAARTHI">
-                <MessageComposer
-                  value={question}
-                  disabled={sending || !activeConversationId}
-                  isBusy={sending}
-                  mode={toApiAskMode(preferences.responseMode)}
-                  onChange={setQuestion}
-                  onModeChange={handleModeChange}
-                  onSubmit={handleSubmitQuestion}
-                  context="home"
-                />
-              </div>
 
               <section className="home-prompts" aria-label="Suggested prompts">
                 <h3>Suggested starters</h3>
@@ -607,26 +595,24 @@ export function ChatPage() {
           </div>
         ) : null}
 
-        {!showHomeState ? (
-          <div className="chat-fixed-footer">
-            <div className="composer-dock composer-dock--conversation">
-              <MessageComposer
-                value={question}
-                disabled={!activeConversationId}
-                isBusy={sending}
-                mode={toApiAskMode(preferences.responseMode)}
-                onChange={setQuestion}
-                onModeChange={handleModeChange}
-                onSubmit={handleSubmitQuestion}
-                onStop={handleStop}
-                context="conversation"
-              />
-            </div>
-            <footer className="workspace-footer">
-              For informational support only. Validate conclusions against official RBI circulars and qualified compliance advice.
-            </footer>
+        <div className="chat-fixed-footer">
+          <div className="composer-dock composer-dock--conversation">
+            <MessageComposer
+              value={question}
+              disabled={!activeConversationId}
+              isBusy={sending}
+              mode={toApiAskMode(preferences.responseMode)}
+              onChange={setQuestion}
+              onModeChange={handleModeChange}
+              onSubmit={handleSubmitQuestion}
+              onStop={handleStop}
+              context={showHomeState ? "home" : "conversation"}
+            />
           </div>
-        ) : null}
+          <footer className="workspace-footer">
+            For informational support only. Validate conclusions against official RBI circulars and qualified compliance advice.
+          </footer>
+        </div>
       </div>
     </AppShell>
   );
