@@ -34,6 +34,19 @@ def _auth_headers(client: TestClient, employee_id: str, full_name: str) -> dict[
     return {"Authorization": f"Bearer {token}"}
 
 
+def _admin_auth_headers(client: TestClient) -> dict[str, str]:
+    login_response = client.post(
+        "/api/v1/auth/login",
+        json={
+            "employee_id": chat_store.DEFAULT_ADMIN_EMPLOYEE_ID,
+            "password": chat_store.DEFAULT_ADMIN_PASSWORD,
+        },
+    )
+    assert login_response.status_code == 200
+    token = login_response.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
 def test_conversation_message_flow(client: TestClient):
     headers = _auth_headers(client, employee_id="EMP3001", full_name="Anita Rao")
 
@@ -205,3 +218,26 @@ def test_add_message_denies_non_owner(client: TestClient):
         json={"role": "user", "content": "Attempted unauthorized message", "sources": []},
     )
     assert response.status_code == 403
+
+
+def test_admin_conversation_flow_uses_admin_scope_store(client: TestClient):
+    headers = _admin_auth_headers(client)
+
+    create_response = client.post(
+        "/api/v1/conversations",
+        headers=headers,
+        json={"title": "Admin Scope Chat"},
+    )
+    assert create_response.status_code == 201
+    conversation_id = create_response.json()["id"]
+
+    add_response = client.post(
+        f"/api/v1/conversations/{conversation_id}/messages",
+        headers=headers,
+        json={"role": "user", "content": "Admin prompt", "sources": []},
+    )
+    assert add_response.status_code == 201
+
+    list_response = client.get("/api/v1/conversations", headers=headers)
+    assert list_response.status_code == 200
+    assert any(item["id"] == conversation_id for item in list_response.json())

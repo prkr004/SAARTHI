@@ -6,24 +6,13 @@ import { useTheme } from "../hooks/useTheme";
 import { api } from "../lib/api/endpoints";
 import type { ModelConfig } from "../lib/api/types";
 import {
+  type ComparisonMethod,
   getWorkspacePreferences,
   resetWorkspacePreferences,
   updateWorkspacePreferences,
-  type ComparisonMethod,
   type WorkspacePreferences,
 } from "../lib/preferences";
 import { storage } from "../lib/storage";
-
-function methodLabel(method: ComparisonMethod): string {
-  switch (method) {
-    case "difflib":
-      return "Fast compare";
-    case "llm":
-      return "Deep compare";
-    default:
-      return "Balanced";
-  }
-}
 
 export function SettingsPage() {
   const navigate = useNavigate();
@@ -216,17 +205,6 @@ export function SettingsPage() {
             <button type="button" className="button button--primary" onClick={() => navigate("/")}>
               Return to chat
             </button>
-          </div>
-        </section>
-
-        <section className="settings-card" aria-label="Current summary">
-          <h2>Current Profile</h2>
-          <div className="settings-pills">
-            <span className="pill">Top-K {preferences.topK}</span>
-            <span className="pill">{methodLabel(preferences.comparisonMethod)}</span>
-            <span className="pill">{preferences.compactChat ? "Compact" : "Spacious"}</span>
-            <span className="pill">{preferences.showTemporalDetails ? "Temporal On" : "Temporal Off"}</span>
-            <span className="pill">{theme === "dark" ? "Dark Theme" : "Light Theme"}</span>
           </div>
         </section>
       </div>

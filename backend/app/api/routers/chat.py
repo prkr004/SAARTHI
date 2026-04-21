@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, status
 
 from chat_store import (
     add_message,
+    get_user_scope_for_role,
     create_conversation,
     delete_conversation,
     ensure_user_has_conversation,
@@ -37,10 +38,15 @@ def _raise_for_permission_error(error: Exception) -> None:
         ) from error
 
 
+def _resolve_user_scope(current_user: dict) -> str:
+    return get_user_scope_for_role(current_user.get("role"))
+
+
 @router.get("", response_model=list[ConversationSummary])
 def list_user_conversations(current_user: dict = Depends(get_current_user)) -> list[ConversationSummary]:
     user_id = int(current_user["user_id"])
-    conversations = list_conversations(user_id=user_id)
+    user_scope = _resolve_user_scope(current_user)
+    conversations = list_conversations(user_id=user_id, scope=user_scope)
     return [ConversationSummary(**conversation) for conversation in conversations]
 
 
@@ -50,14 +56,16 @@ def create_user_conversation(
     current_user: dict = Depends(get_current_user),
 ) -> ConversationCreatedResponse:
     user_id = int(current_user["user_id"])
-    new_id = create_conversation(user_id=user_id, title=payload.title)
+    user_scope = _resolve_user_scope(current_user)
+    new_id = create_conversation(user_id=user_id, title=payload.title, scope=user_scope)
     return ConversationCreatedResponse(id=new_id, title=payload.title)
 
 
 @router.post("/default", response_model=EnsureDefaultConversationResponse)
 def ensure_default_conversation(current_user: dict = Depends(get_current_user)) -> EnsureDefaultConversationResponse:
     user_id = int(current_user["user_id"])
-    conversation_id = ensure_user_has_conversation(user_id=user_id)
+    user_scope = _resolve_user_scope(current_user)
+    conversation_id = ensure_user_has_conversation(user_id=user_id, scope=user_scope)
     return EnsureDefaultConversationResponse(conversation_id=conversation_id)
 
 
@@ -68,11 +76,13 @@ def rename_user_conversation(
     current_user: dict = Depends(get_current_user),
 ) -> ConversationCreatedResponse:
     user_id = int(current_user["user_id"])
+    user_scope = _resolve_user_scope(current_user)
     try:
         updated_title = rename_conversation(
             conversation_id=conversation_id,
             user_id=user_id,
             new_title=payload.new_title,
+            scope=user_scope,
         )
     except Exception as error:
         _raise_for_permission_error(error)
@@ -89,8 +99,9 @@ def delete_user_conversation(
     current_user: dict = Depends(get_current_user),
 ) -> ApiMessage:
     user_id = int(current_user["user_id"])
+    user_scope = _resolve_user_scope(current_user)
     try:
-        delete_conversation(conversation_id=conversation_id, user_id=user_id)
+        delete_conversation(conversation_id=conversation_id, user_id=user_id, scope=user_scope)
     except Exception as error:
         _raise_for_permission_error(error)
         raise
@@ -104,8 +115,9 @@ def list_conversation_messages(
     current_user: dict = Depends(get_current_user),
 ) -> list[MessageItem]:
     user_id = int(current_user["user_id"])
+    user_scope = _resolve_user_scope(current_user)
     try:
-        messages = get_messages(conversation_id=conversation_id, user_id=user_id)
+        messages = get_messages(conversation_id=conversation_id, user_id=user_id, scope=user_scope)
     except Exception as error:
         _raise_for_permission_error(error)
         raise
@@ -120,6 +132,7 @@ def add_conversation_message(
     current_user: dict = Depends(get_current_user),
 ) -> ApiMessage:
     user_id = int(current_user["user_id"])
+    user_scope = _resolve_user_scope(current_user)
     try:
         add_message(
             conversation_id=conversation_id,
@@ -127,6 +140,7 @@ def add_conversation_message(
             role=payload.role,
             content=payload.content,
             sources=payload.sources,
+            scope=user_scope,
         )
     except Exception as error:
         _raise_for_permission_error(error)

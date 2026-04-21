@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { ConversationSummary } from "../../lib/api/types";
+import saarthiLogo from "../../assets/hero.png";
 
 interface SidebarProps {
   userName: string;
@@ -16,6 +17,11 @@ interface SidebarProps {
   onOpenSettings?: () => void;
   onOpenProfile?: () => void;
   onLogout: () => void;
+}
+
+function getConversationTitle(title: string | null | undefined): string {
+  const normalized = typeof title === "string" ? title.trim() : "";
+  return normalized.length > 0 ? normalized : "New chat";
 }
 
 export function Sidebar({
@@ -43,7 +49,7 @@ export function Sidebar({
     }
 
     return conversations.filter((conversation) => {
-      const title = (conversation.title || "New Chat").toLowerCase();
+      const title = getConversationTitle(conversation.title).toLowerCase();
       return title.includes(normalizedSearch);
     });
   }, [conversations, normalizedSearch]);
@@ -73,8 +79,8 @@ export function Sidebar({
     <div className="sidebar">
       <header className="sidebar-brand" aria-label="Workspace navigation">
         <div className="sidebar-brand__row">
-          <div className="sidebar-badge" aria-hidden="true">
-            SA
+          <div className="sidebar-badge">
+            <img src={saarthiLogo} alt="SAARTHI logo" className="sidebar-badge__logo" />
           </div>
           <div className="sidebar-brand__label">
             <h2>SAARTHI</h2>
@@ -141,7 +147,7 @@ export function Sidebar({
         <ul className="conversation-list" aria-labelledby="sidebar-chats-heading">
           {filteredConversations.map((conversation) => {
             const isActive = conversation.id === activeConversationId;
-            const title = conversation.title || "New Chat";
+            const title = getConversationTitle(conversation.title);
 
             return (
               <li key={conversation.id} className={`conversation-item ${isActive ? "is-active" : ""}`}>

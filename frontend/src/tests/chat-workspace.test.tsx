@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatPage } from "../pages/ChatPage";
@@ -27,6 +27,19 @@ vi.mock("../hooks/useAuth", () => ({
 vi.mock("../lib/api/endpoints", () => ({
   api: apiMock,
 }));
+
+function LocationProbe() {
+  const location = useLocation();
+  return <div data-testid="location-path">{location.pathname}</div>;
+}
+
+const FAST_REPLY = {
+  mode: "fast_direct",
+  answer: "quick",
+  sources: [],
+  formatted_sources: [],
+  metadata: { predefined: false, top_k: 5, elapsed_ms: 5 },
+};
 
 describe("chat workspace", () => {
   beforeEach(() => {
@@ -73,6 +86,32 @@ describe("chat workspace", () => {
     });
   });
 
+  it("falls back to New chat when conversation title is blank", async () => {
+    const user = userEvent.setup();
+    apiMock.listConversations.mockResolvedValueOnce([
+      {
+        id: 33,
+        title: "   ",
+        created_at: "2026-04-07T00:00:00+00:00",
+        updated_at: "2026-04-07T00:00:00+00:00",
+        message_count: 0,
+      },
+    ]);
+
+    render(
+      <MemoryRouter>
+        <ChatPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole("button", { name: "Rename New chat" });
+    await user.type(screen.getByPlaceholderText("Search chats"), "new");
+
+    expect(screen.queryByText('No chats match "new".')).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Rename New chat" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete New chat" })).toBeInTheDocument();
+  });
+
   it("creates new conversation from sidebar", async () => {
     const user = userEvent.setup();
     render(
@@ -87,6 +126,31 @@ describe("chat workspace", () => {
     await waitFor(() => {
       expect(apiMock.createConversation).toHaveBeenCalled();
     });
+  });
+
+  it("prefills composer from starters and prompt library without auto-sending", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter>
+        <ChatPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole("heading", { name: "SAARTHI" });
+
+    await user.click(screen.getByRole("button", { name: "Digital Lending Obligations" }));
+    const input = screen.getByLabelText("Ask SAARTHI a question");
+    expect(input).toHaveValue("Summarize key obligations for digital lending apps under RBI guidelines.");
+    await waitFor(() => expect(input).toHaveFocus());
+    expect(apiMock.askTemporal).toHaveBeenCalledTimes(0);
+
+    await user.click(screen.getByRole("button", { name: "Prompt Library" }));
+    await user.click(screen.getByRole("button", { name: /KYC Due Diligence Steps/i }));
+
+    expect(input).toHaveValue("Explain customer due diligence steps under the RBI KYC Master Direction.");
+    await waitFor(() => expect(input).toHaveFocus());
+    expect(apiMock.askTemporal).toHaveBeenCalledTimes(0);
   });
 
   it("renames and deletes with confirmation helpers", async () => {
@@ -114,13 +178,7 @@ describe("chat workspace", () => {
 
   it("updates composer response mode and includes it in ask payload", async () => {
     const user = userEvent.setup();
-    apiMock.askTemporal.mockResolvedValueOnce({
-      mode: "fast_direct",
-      answer: "quick",
-      sources: [],
-      formatted_sources: [],
-      metadata: { predefined: false, top_k: 5, elapsed_ms: 5 },
-    });
+    apiMock.askTemporal.mockResolvedValueOnce(FAST_REPLY);
 
     render(
       <MemoryRouter>
@@ -130,11 +188,13 @@ describe("chat workspace", () => {
 
     await screen.findByRole("heading", { name: "SAARTHI" });
 
-    const modeSelect = screen.getByLabelText("Response mode");
-    expect(modeSelect).toHaveValue("thinking");
+    const thinkToggle = screen.getByRole("button", { name: "Think mode" });
+    const fastToggle = screen.getByRole("button", { name: "Fast mode" });
+    expect(thinkToggle).toHaveAttribute("aria-pressed", "true");
+    expect(fastToggle).toHaveAttribute("aria-pressed", "false");
 
-    await user.selectOptions(modeSelect, "fast");
-    expect(modeSelect).toHaveValue("fast");
+    await user.click(fastToggle);
+    expect(fastToggle).toHaveAttribute("aria-pressed", "true");
 
     await user.type(screen.getByPlaceholderText(/Ask SAARTHI about RBI regulations/i), "Quick test");
     await user.click(screen.getByRole("button", { name: "Send message" }));
@@ -149,5 +209,45 @@ describe("chat workspace", () => {
         expect.objectContaining({ mode: "fast" }),
       );
     });
+  });
+
+  it("keeps user on the same route when stop is clicked", async () => {
+    const user = userEvent.setup();
+
+    apiMock.askTemporal.mockImplementationOnce(() => new Promise(() => {}));
+
+    render(
+      <MemoryRouter initialEntries={["/admin/chat"]}>
+        <LocationProbe />
+        <ChatPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole("heading", { name: "SAARTHI" });
+    await user.type(screen.getByPlaceholderText(/Ask SAARTHI about RBI regulations/i), "Stop test");
+    await user.click(screen.getByRole("button", { name: "Send message" }));
+
+    await user.click(await screen.findByRole("button", { name: "Stop generating response" }));
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/admin/chat");
+  });
+
+  it("keeps employee chat route stable when stop is clicked", async () => {
+    const user = userEvent.setup();
+
+    apiMock.askTemporal.mockImplementationOnce(() => new Promise(() => {}));
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <LocationProbe />
+        <ChatPage />
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole("heading", { name: "SAARTHI" });
+    await user.type(screen.getByPlaceholderText(/Ask SAARTHI about RBI regulations/i), "Stop test employee");
+    await user.click(screen.getByRole("button", { name: "Send message" }));
+
+    await user.click(await screen.findByRole("button", { name: "Stop generating response" }));
+    expect(screen.getByTestId("location-path")).toHaveTextContent("/");
   });
 });

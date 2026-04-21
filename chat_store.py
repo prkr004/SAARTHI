@@ -866,6 +866,11 @@ def _ensure_users_table(conn: sqlite3.Connection, *, include_reviewed_by_fk: boo
 def _ensure_employee_schema(conn: sqlite3.Connection) -> None:
     _ensure_users_table(conn, include_reviewed_by_fk=False)
 
+    _ensure_conversation_schema(conn)
+
+
+def _ensure_conversation_schema(conn: sqlite3.Connection) -> None:
+
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS conversations (
@@ -917,6 +922,7 @@ def _ensure_employee_schema(conn: sqlite3.Connection) -> None:
 
 def _ensure_admin_schema(conn: sqlite3.Connection) -> None:
     _ensure_users_table(conn, include_reviewed_by_fk=True)
+    _ensure_conversation_schema(conn)
     _ensure_ingestion_jobs_schema(conn)
     _ensure_backfill_jobs_schema(conn)
     _ensure_documents_schema(conn)
@@ -3182,9 +3188,9 @@ def list_document_audit_log(document_id: int, *, limit: int = 100) -> list[dict]
     return [_serialize_document_audit_row(row) for row in rows]
 
 
-def create_conversation(user_id: int, title: str = "New Chat") -> int:
+def create_conversation(user_id: int, title: str = "New Chat", *, scope: str = USER_SCOPE_EMPLOYEE) -> int:
     now = _utc_now_iso()
-    with _connection() as conn:
+    with _conversation_connection(scope) as conn:
         cursor = conn.execute(
             """
             INSERT INTO conversations (user_id, title, created_at, updated_at)
@@ -3196,8 +3202,8 @@ def create_conversation(user_id: int, title: str = "New Chat") -> int:
         return int(cursor.lastrowid)
 
 
-def list_conversations(user_id: int) -> list[dict]:
-    with _connection() as conn:
+def list_conversations(user_id: int, *, scope: str = USER_SCOPE_EMPLOYEE) -> list[dict]:
+    with _conversation_connection(scope) as conn:
         rows = conn.execute(
             """
             SELECT c.id, c.title, c.created_at, c.updated_at,
@@ -3225,17 +3231,28 @@ def _assert_conversation_owner(conn: sqlite3.Connection, conversation_id: int, u
         raise PermissionError("Conversation access denied.")
 
 
+def _conversation_connection(scope: str) -> sqlite3.Connection:
+    normalized_scope = _normalize_user_scope(scope)
+    if normalized_scope == USER_SCOPE_ADMIN:
+        return _admin_connection()
+    if normalized_scope == USER_SCOPE_EMPLOYEE:
+        return _employee_connection()
+    raise ValueError("Conversations require an explicit employee or admin scope.")
+
+
 def add_message(
     conversation_id: int,
     user_id: int,
     role: str,
     content: str,
     sources: Optional[list[dict]] = None,
+    *,
+    scope: str = USER_SCOPE_EMPLOYEE,
 ) -> None:
     if role not in ("user", "assistant"):
         raise ValueError("Invalid message role.")
 
-    with _connection() as conn:
+    with _conversation_connection(scope) as conn:
         _assert_conversation_owner(conn, conversation_id, user_id)
 
         conn.execute(
@@ -3277,8 +3294,8 @@ def add_message(
         conn.commit()
 
 
-def get_messages(conversation_id: int, user_id: int) -> list[dict]:
-    with _connection() as conn:
+def get_messages(conversation_id: int, user_id: int, *, scope: str = USER_SCOPE_EMPLOYEE) -> list[dict]:
+    with _conversation_connection(scope) as conn:
         _assert_conversation_owner(conn, conversation_id, user_id)
 
         rows = conn.execute(
@@ -3309,21 +3326,27 @@ def get_messages(conversation_id: int, user_id: int) -> list[dict]:
     return messages
 
 
-def ensure_user_has_conversation(user_id: int) -> int:
-    conversations = list_conversations(user_id)
+def ensure_user_has_conversation(user_id: int, *, scope: str = USER_SCOPE_EMPLOYEE) -> int:
+    conversations = list_conversations(user_id, scope=scope)
     if conversations:
         return int(conversations[0]["id"])
-    return create_conversation(user_id=user_id, title="New Chat")
+    return create_conversation(user_id=user_id, title="New Chat", scope=scope)
 
 
-def rename_conversation(conversation_id: int, user_id: int, new_title: str) -> str:
+def rename_conversation(
+    conversation_id: int,
+    user_id: int,
+    new_title: str,
+    *,
+    scope: str = USER_SCOPE_EMPLOYEE,
+) -> str:
     cleaned_title = " ".join((new_title or "").split()).strip()
     if not cleaned_title:
         raise ValueError("Chat title cannot be empty.")
 
     cleaned_title = cleaned_title[:80]
 
-    with _connection() as conn:
+    with _conversation_connection(scope) as conn:
         _assert_conversation_owner(conn, conversation_id, user_id)
         conn.execute(
             """
@@ -3338,8 +3361,8 @@ def rename_conversation(conversation_id: int, user_id: int, new_title: str) -> s
     return cleaned_title
 
 
-def delete_conversation(conversation_id: int, user_id: int) -> None:
-    with _connection() as conn:
+def delete_conversation(conversation_id: int, user_id: int, *, scope: str = USER_SCOPE_EMPLOYEE) -> None:
+    with _conversation_connection(scope) as conn:
         _assert_conversation_owner(conn, conversation_id, user_id)
         conn.execute(
             "DELETE FROM conversations WHERE id = ? AND user_id = ?",

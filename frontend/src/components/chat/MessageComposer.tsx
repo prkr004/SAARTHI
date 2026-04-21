@@ -102,11 +102,37 @@ export function MessageComposer({
           aria-describedby={describedBy}
         />
 
+        <div className="composer-mode-toggle" role="group" aria-label="Response mode">
+          <button
+            type="button"
+            className={`composer-mode-toggle__btn ${mode === "thinking" ? "is-active" : ""}`}
+            onClick={() => onModeChange("thinking")}
+            disabled={disabled || isBusy}
+            aria-pressed={mode === "thinking"}
+            aria-label="Think mode"
+          >
+            Think
+          </button>
+          <button
+            type="button"
+            className={`composer-mode-toggle__btn ${mode === "fast" ? "is-active" : ""}`}
+            onClick={() => onModeChange("fast")}
+            disabled={disabled || isBusy}
+            aria-pressed={mode === "fast"}
+            aria-label="Fast mode"
+          >
+            Fast
+          </button>
+        </div>
+
         {isBusy && onStop ? (
           <button
             type="button"
             className="button button--compact composer-stop"
-            onClick={onStop}
+            onClick={(event) => {
+              event.preventDefault();
+              onStop();
+            }}
             aria-label="Stop generating response"
           >
             Stop
@@ -127,18 +153,6 @@ export function MessageComposer({
       </div>
 
       <div className="composer-row" id={inputHintId}>
-        <label className="composer-mode">
-          <span className="sr-only">Response mode</span>
-          <select
-            value={mode}
-            onChange={(event) => onModeChange(event.target.value as AskMode)}
-            disabled={disabled || isBusy}
-            aria-label="Response mode"
-          >
-            <option value="thinking">Thinking (Grounded)</option>
-            <option value="fast">Fast</option>
-          </select>
-        </label>
         <span className="composer-hint">Enter to send</span>
         <span className="composer-hint">Shift+Enter for new line</span>
       </div>

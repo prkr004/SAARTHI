@@ -93,10 +93,11 @@ describe("question ask flow", () => {
     );
 
     await screen.findByRole("heading", { name: "SAARTHI" });
-    const modeSelect = screen.getByLabelText("Response mode");
-    expect(modeSelect).toHaveValue("thinking");
-    await user.selectOptions(modeSelect, "fast");
-    expect(modeSelect).toHaveValue("fast");
+    const thinkToggle = screen.getByRole("button", { name: "Think mode" });
+    const fastToggle = screen.getByRole("button", { name: "Fast mode" });
+    expect(thinkToggle).toHaveAttribute("aria-pressed", "true");
+    await user.click(fastToggle);
+    expect(fastToggle).toHaveAttribute("aria-pressed", "true");
 
     await user.type(
       screen.getByPlaceholderText(/Ask SAARTHI about RBI regulations/i),

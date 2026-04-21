@@ -121,8 +121,12 @@ export function ChatPage() {
   const showHomeState = !loadingMessages && !hasMessages;
 
   useEffect(() => {
-    scrollAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages]);
+    const frame = window.requestAnimationFrame(() => {
+      scrollAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [messages, sending]);
 
   useEffect(() => {
     function refreshPreferences() {
@@ -237,7 +241,7 @@ export function ChatPage() {
   async function handleCreateConversation() {
     try {
       setNotice(null);
-      const created = await api.createConversation("New Chat");
+      const created = await api.createConversation("New chat");
       await hydrateConversations(created.id);
       setMessages([]);
       setSidebarOpen(false);
@@ -247,7 +251,7 @@ export function ChatPage() {
   }
 
   async function handleRenameConversation(conversationId: number, currentTitle: string) {
-    const nextTitle = window.prompt("Rename chat", currentTitle || "New Chat");
+    const nextTitle = window.prompt("Rename chat", currentTitle || "New chat");
     if (!nextTitle || !nextTitle.trim()) {
       return;
     }
@@ -285,6 +289,27 @@ export function ChatPage() {
       responseMode: nextMode === "fast" ? "fast" : "thinking_grounded",
     });
     setPreferences(updated);
+  }
+
+  function focusComposerInput() {
+    const input = document.getElementById("chat-input") as HTMLTextAreaElement | null;
+    if (!input) {
+      return;
+    }
+
+    input.focus();
+    const caret = input.value.length;
+    input.setSelectionRange(caret, caret);
+  }
+
+  function prefillQuestion(nextQuestion: string) {
+    setQuestion(nextQuestion);
+    scrollAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    focusComposerInput();
+
+    window.requestAnimationFrame(() => {
+      focusComposerInput();
+    });
   }
 
   async function handleSubmitQuestion(overrideQuestion?: string) {
@@ -456,6 +481,16 @@ export function ChatPage() {
         </p>
       ) : null}
 
+      <div className="chat-topbar">
+        <button
+          type="button"
+          className="prompt-library-trigger"
+          onClick={() => setPromptLibraryOpen(true)}
+        >
+          Prompt Library
+        </button>
+      </div>
+
       <section
         className={`chat-surface ${preferences.compactChat ? "is-compact" : ""} ${showHomeState ? "chat-surface--home" : "chat-surface--conversation"}`}
         aria-label="Chat messages"
@@ -469,16 +504,6 @@ export function ChatPage() {
 
         {showHomeState ? (
           <article className="home-stage" aria-label="SAARTHI home">
-            <div className="home-stage-topbar">
-              <button
-                type="button"
-                className="prompt-library-trigger"
-                onClick={() => setPromptLibraryOpen(true)}
-              >
-                Prompt Library
-              </button>
-            </div>
-
             <p className="home-stage__eyebrow">Namaste, {userDisplayName || "there"}</p>
             <h2>What should SAARTHI help you review today?</h2>
             <p className="home-stage__subtext">
@@ -503,7 +528,7 @@ export function ChatPage() {
               <ul className="prompt-chips">
                 {STARTER_CHIPS.slice(0, 4).map((chip) => (
                   <li key={chip.label}>
-                    <button type="button" className="prompt-chip" onClick={() => void handleSubmitQuestion(chip.full)}>
+                    <button type="button" className="prompt-chip" onClick={() => prefillQuestion(chip.full)}>
                       {chip.label}
                     </button>
                   </li>
@@ -566,7 +591,7 @@ export function ChatPage() {
                   className="prompt-library-item"
                   onClick={() => {
                     setPromptLibraryOpen(false);
-                    void handleSubmitQuestion(chip.full);
+                    prefillQuestion(chip.full);
                   }}
                 >
                   <span className="prompt-library-item__label">{chip.label}</span>
