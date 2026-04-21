@@ -297,13 +297,13 @@ def generate_circular_docx(data: CircularDraft) -> BytesIO:
     _add_section_heading(document, "Highlights")
     _add_bulleted_items(document, data.highlights)
 
-    _add_section_heading(document, "Background / Reference")
+    
     _add_justified_paragraph(document, data.background_context)
 
     _add_section_heading(document, "Operational Guidelines")
     _add_numbered_items(document, data.operational_directives)
 
-    _add_section_heading(document, "Compliance / Action")
+    _add_section_heading(document, "Compliance")
     _add_justified_paragraph(document, data.compliance_warning)
 
     _add_right_aligned_signoff(document, data.issuing_authority)
@@ -365,10 +365,10 @@ def generate_press_release_docx(data: PressReleaseDraft) -> BytesIO:
     _set_font(headline_run, size=13, bold=True)
     _set_paragraph_spacing(headline, after=10)
 
-    _add_section_heading(document, "Lead")
+    
     _add_justified_paragraph(document, data.lead_paragraph)
 
-    _add_section_heading(document, "Body")
+    
     for paragraph_text in data.body_paragraphs:
         _add_justified_paragraph(document, paragraph_text)
 
