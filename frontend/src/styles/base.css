@@ -1076,7 +1076,7 @@ input::placeholder {
   flex-shrink: 0;
   position: relative;
   z-index: 10;
-  background: var(--bg-alt);
+  background: transparent;
   align-self: center;
 }
 
@@ -1244,7 +1244,7 @@ input::placeholder {
   padding: 0.35rem 1.2rem;
   position: relative;
   z-index: 10;
-  background: var(--bg-alt);
+  background: transparent;
   align-self: center;
 }
 
@@ -1260,7 +1260,7 @@ input::placeholder {
   gap: 0.48rem;
   border: 1px solid color-mix(in srgb, var(--line) 92%, transparent);
   border-radius: 18px;
-  background: color-mix(in srgb, var(--surface-1) 95%, transparent);
+  background: var(--surface-1);
   box-shadow: var(--shadow-1);
   padding: 0.46rem 0.5rem;
   transition: border-color var(--transition-base), box-shadow var(--transition-base);
