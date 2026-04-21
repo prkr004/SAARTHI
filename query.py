@@ -65,24 +65,29 @@ def _default_index_path() -> str:
 _KNOWN_DOCUMENTS: list[dict] = [
     # ── Digital Lending ─────────────────────────────────────────────────
     {
-        "pattern": "digitallending",
-        "name": "RBI Guidelines on Digital Lending",
-        "url": "https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=12382",
+        "pattern": "digital_lending_2025",
+        "name": "RBI (Digital Lending) Directions, 2025",
+        "url": "https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=12848",
     },
     {
         "pattern": "digital_lending_2022",
         "name": "RBI Digital Lending Guidelines (2022)",
-        "url": "https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=12382",
+        "url": "https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=12848",
     },
     {
-        "pattern": "digital_lending_2025",
-        "name": "RBI Digital Lending Guidelines (2025)",
-        "url": "https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=12382",
+        "pattern": "guidelinesdigitallending",
+        "name": "RBI Guidelines on Digital Lending",
+        "url": "https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=12848",
     },
     {
         "pattern": "dlg",
-        "name": "Digital Lending Guidelines — Detailed Reference",
-        "url": "https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=12382",
+        "name": "Digital Lending Guidelines - Detailed Reference",
+        "url": "https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=12848",
+    },
+    {
+        "pattern": "digitallending",
+        "name": "RBI Guidelines on Digital Lending",
+        "url": "https://www.rbi.org.in/Scripts/NotificationUser.aspx?Id=12848",
     },
     # ── KYC ─────────────────────────────────────────────────────────────
     {
@@ -91,15 +96,77 @@ _KNOWN_DOCUMENTS: list[dict] = [
         "url": "https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=11566",
     },
     {
+        "pattern": "rbi_kyc",
+        "name": "RBI KYC Compliance Guidance",
+        "url": "https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=11566",
+    },
+    {
         "pattern": "kyc",
         "name": "RBI Master Direction on KYC",
         "url": "https://www.rbi.org.in/Scripts/BS_ViewMasDirections.aspx?id=11566",
+    },
+    # ── RBI circular corpus (full manifest coverage) ────────────────────
+    {
+        "pattern": "credit information companies",
+        "name": "RBI Credit Information Companies Framework",
+        "url": "https://www.rbi.org.in/Scripts/SearchResults.aspx?search=Credit%20Information%20Companies",
+    },
+    {
+        "pattern": "cyber security framework in banks",
+        "name": "RBI Cyber Security Framework in Banks",
+        "url": "https://www.rbi.org.in/Scripts/SearchResults.aspx?search=Cyber%20Security%20Framework%20in%20Banks",
+    },
+    {
+        "pattern": "digital payment security",
+        "name": "RBI Digital Payment Security Controls",
+        "url": "https://www.rbi.org.in/Scripts/SearchResults.aspx?search=Digital%20Payment%20Security%20Controls",
+    },
+    {
+        "pattern": "information technology governance, risk, controls and assurance practices",
+        "name": "RBI IT Governance, Risk, Controls and Assurance Practices",
+        "url": "https://www.rbi.org.in/Scripts/SearchResults.aspx?search=Information%20Technology%20Governance%20Risk%20Controls%20and%20Assurance%20Practices",
+    },
+    {
+        "pattern": "outsourcing guidelines",
+        "name": "RBI Outsourcing Guidelines",
+        "url": "https://www.rbi.org.in/Scripts/SearchResults.aspx?search=Outsourcing%20Guidelines",
+    },
+    {
+        "pattern": "risk management and cyber fraud",
+        "name": "RBI Risk Management and Cyber Frauds",
+        "url": "https://www.rbi.org.in/Scripts/SearchResults.aspx?search=Risk%20Management%20and%20Cyber%20Frauds",
+    },
+    {
+        "pattern": "storage of payment system data",
+        "name": "RBI Storage of Payment System Data",
+        "url": "https://www.rbi.org.in/Scripts/SearchResults.aspx?search=Storage%20of%20Payment%20System%20Data",
+    },
+    {
+        "pattern": "rbi_it framework",
+        "name": "RBI IT Framework",
+        "url": "https://www.rbi.org.in/Scripts/SearchResults.aspx?search=RBI%20IT%20Framework",
     },
     # ── Digital Personal Data Protection Act ────────────────────────────
     {
         "pattern": "dpdp",
         "name": "Digital Personal Data Protection Act, 2023",
-        "url": "https://www.meity.gov.in/writereaddata/files/Digital%20Personal%20Data%20Protection%20Act%202023.pdf",
+        "url": "https://www.indiacode.nic.in/bitstream/123456789/22037/1/a2023-22.pdf",
+    },
+    {
+        "pattern": "dpdp_act",
+        "name": "Digital Personal Data Protection Act, 2023",
+        "url": "https://www.indiacode.nic.in/bitstream/123456789/22037/1/a2023-22.pdf",
+    },
+    # ── SEBI corpus ──────────────────────────────────────────────────────
+    {
+        "pattern": "cybersecurity and cyber resilience framework",
+        "name": "SEBI Cybersecurity and Cyber Resilience Framework (CSCRF)",
+        "url": "https://www.sebi.gov.in/legal/circulars/aug-2024/cybersecurity-and-cyber-resilience-framework-cscrf-for-sebi-regulated-entities-res-_85964.html",
+    },
+    {
+        "pattern": "outsourcing of activities by intermediaries",
+        "name": "SEBI Outsourcing of Activities by Intermediaries",
+        "url": "https://www.sebi.gov.in/sebiweb/home/HomeAction.do?doListing=yes&sid=1&ssid=7&smid=0",
     },
 ]
 
