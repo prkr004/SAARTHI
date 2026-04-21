@@ -76,40 +76,42 @@ export function Sidebar({
 
   return (
     <div className="sidebar">
-      <header className="sidebar-brand" aria-label="Workspace navigation">
-        <div className="sidebar-brand__row">
-          <div className="sidebar-badge">
-            <img src="/saarthi_logo.png" alt="SAARTHI logo" className="sidebar-badge__logo" />
+      <div className="sidebar-top">
+        <header className="sidebar-brand" aria-label="Workspace navigation">
+          <div className="sidebar-brand__row">
+            <div className="sidebar-badge">
+              <img src="/saarthi_logo.png" alt="SAARTHI logo" className="sidebar-badge__logo" />
+            </div>
+            <div className="sidebar-brand__label">
+              <h2>SAARTHI</h2>
+              <p>Regulatory Workspace</p>
+            </div>
           </div>
-          <div className="sidebar-brand__label">
-            <h2>SAARTHI</h2>
-            <p>Regulatory Workspace</p>
-          </div>
-        </div>
 
-        <button
-          type="button"
-          className="button button--primary button--compact sidebar-new-chat sidebar-touch-target"
-          onClick={onCreateConversation}
-        >
-          <span className="new-chat-icon" aria-hidden="true">
-            +
-          </span>
-          <span>New chat</span>
-        </button>
-
-        {onOpenDrafting ? (
           <button
             type="button"
-            className="button button--ghost button--compact sidebar-draft-btn sidebar-touch-target"
-            onClick={onOpenDrafting}
+            className="button button--primary button--compact sidebar-new-chat sidebar-touch-target"
+            onClick={onCreateConversation}
           >
-            Draft Document
+            <span className="new-chat-icon" aria-hidden="true">
+              +
+            </span>
+            <span>New chat</span>
           </button>
-        ) : null}
-      </header>
 
-      <section className="sidebar-section" aria-label="Conversations">
+          {onOpenDrafting ? (
+            <button
+              type="button"
+              className="button button--ghost button--compact sidebar-draft-btn sidebar-touch-target"
+              onClick={onOpenDrafting}
+            >
+              Draft Document
+            </button>
+          ) : null}
+        </header>
+      </div>
+
+      <section className="sidebar-middle" aria-label="Conversations">
         <div className="sidebar-section__header">
           <h3 id="sidebar-chats-heading">Chats</h3>
           <span className="sidebar-count">{conversations.length}</span>
