@@ -118,3 +118,13 @@ def get_settings() -> Settings:
     """Return cached settings instance."""
 
     return Settings()
+
+
+def load_settings() -> Settings:
+    """Return a non-cached settings instance.
+
+    Use this for components that should honor runtime env changes without
+    requiring a process restart.
+    """
+
+    return Settings()

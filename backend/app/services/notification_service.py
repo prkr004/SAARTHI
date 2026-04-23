@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from email.message import EmailMessage
 import ssl
 
-from backend.app.core.config import get_settings
+from backend.app.core.config import Settings, load_settings
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +22,9 @@ class NotificationResult:
 class NotificationService:
     """Sends approval/rejection notifications via configurable providers."""
 
-    def __init__(self) -> None:
-        self._settings = get_settings()
+    def __init__(self, settings: Settings | None = None) -> None:
+        # Notifications should pick up runtime env updates without requiring a restart.
+        self._settings = settings or load_settings()
 
     def send_approval_email(self, *, recipient_email: str | None, full_name: str) -> NotificationResult:
         subject = "SAARTHI access request approved"
