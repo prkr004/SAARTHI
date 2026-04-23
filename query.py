@@ -166,7 +166,7 @@ _KNOWN_DOCUMENTS: list[dict] = [
     {
         "pattern": "outsourcing of activities by intermediaries",
         "name": "SEBI Outsourcing of Activities by Intermediaries",
-        "url": "https://www.sebi.gov.in/sebiweb/home/HomeAction.do?doListing=yes&sid=1&ssid=7&smid=0",
+        "url": "https://www.sebi.gov.in/legal/circulars/dec-2011/guidelines-on-outsourcing-of-activities-by-intermediaries_21752.html",
     },
 ]
 
