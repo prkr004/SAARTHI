@@ -1,22 +1,96 @@
-# SAARTHI - FastAPI + React Regulatory Assistant
+# SAARTHI
 
-SAARTHI is a FastAPI backend plus React frontend application for regulatory Q&A and temporal comparison over indexed documents.
+SAARTHI is a full-stack regulatory intelligence platform built to help teams search, understand, and operationalize compliance knowledge across evolving regulatory documents.
 
-## Stack
+It combines semantic retrieval, temporal comparison, and workflow tooling so users can move from raw circulars and policy PDFs to actionable answers.
+
+## What SAARTHI Solves
+
+Regulatory and compliance teams often struggle with:
+
+- fragmented source documents spread across versions and issuers
+- slow manual lookup during audits, reviews, and implementation work
+- uncertainty about how obligations changed over time
+- limited traceability between answers and source text
+
+SAARTHI addresses this by providing a single platform for ingestion, indexing, retrieval, comparison, and governed access.
+
+## Key Features
+
+- FastAPI backend with modular service layers
+- React + TypeScript frontend for user and admin workflows
+- Retrieval-Augmented Generation (RAG) over indexed documents
+- Temporal comparison support for version-aware analysis
+- Role-aware authentication and access control
+- Password hashing and secure session-token handling
+- User onboarding with approval workflow
+- Admin upload pipeline for document ingestion
+- Background job tracking for ingestion, backfill, and summaries
+- Health and readiness endpoints for operational monitoring
+- Automated backend and frontend test support
+
+## Functional Areas
+
+### 1) Authentication and Access
+
+- employee and admin login flows
+- approval-gated user onboarding
+- session persistence in a dedicated store
+- secure handling of credentials and tokens
+
+### 2) Document Lifecycle
+
+- manifest-driven corpus definition
+- ingestion of supported regulatory PDFs
+- metadata-aware indexing and storage
+- document tracking for updates and governance
+
+### 3) Retrieval and Intelligence
+
+- semantic search over vectorized document chunks
+- context-aware answer generation
+- temporal intent/comparison helpers
+- answer grounding using indexed source data
+
+### 4) Admin Operations
+
+- upload management and ingestion controls
+- job state visibility (queued/running/completed/failed)
+- operational workflows for reindexing and backfills
+- document registry and audit-aligned process support
+
+## How It Works
+
+1. Configure the environment and dependencies.
+2. Define source documents in the corpus manifest.
+3. Build or refresh the vector index.
+4. Start model serving, backend, and frontend services.
+5. Users ask questions from the UI; backend retrieves context and generates responses.
+6. Admins manage onboarding, ingestion jobs, and operational data quality flows.
+
+## Tech Stack
 
 - Backend: FastAPI
-- Frontend: React + TypeScript + Vite
-- Retrieval: FAISS + LangChain + Ollama
-- Persistence: SQLite split stores
-	- Employee DB: `data/shared/saarthi_employee.db`
-	- Admin DB: `data/shared/saarthi_admin.db`
-	- Session DB: `data/shared/saarthi_sessions.db`
+- Frontend: React, TypeScript, Vite
+- Retrieval: FAISS, LangChain, Ollama-compatible local models
+- Persistence: SQLite split stores (employee/admin/session)
+
+## Repository Structure
+
+- `backend/` API, services, schemas, tests, and operational scripts
+- `frontend/` React application and frontend test/build setup
+- `data/` corpus manifest, shared data stores, upload artifacts
+- `docs/` migration notes, phase reports, and archived references
+- `ingestion/` document loading and vectorstore build helpers
+- `scripts/` development convenience scripts
+- `chat_store.py` core local persistence/auth/conversation routines
+- `build_vectorstore.py` index build entrypoint
 
 ## Prerequisites
 
-1. Python 3.12 recommended
-2. Node.js 20+ and npm 10+
-3. Ollama installed
+- Python 3.12+ recommended
+- Node.js 20+ and npm 10+
+- Ollama installed and available in PATH
 
 ## First-Time Setup
 
@@ -36,144 +110,92 @@ Copy-Item .env.example .env
 cd ..
 ```
 
-Pull at least one Ollama model (example):
+Pull at least one compatible model:
 
 ```powershell
 ollama pull phi:2.7b
 ```
 
-## Build Vector Store (required before asking RAG questions)
+## Build Vector Store
 
-The build now reads a corpus manifest at `data/corpus_manifest.json`.
+The build process reads `data/corpus_manifest.json`.
 
-Every manifest entry must include these keys:
+Each manifest item must provide:
 
 - `pdf_path`
 - `regulator`
 - `document_title`
 - `version_date` (YYYY-MM-DD)
 - `effective_date` (YYYY-MM-DD)
-- `amends` (can be `null`, but key is required)
+- `amends` (nullable, but required key)
 
-The default manifest already includes RBI + SEBI + DPDP sources from `data/`.
-
-Run after setup, and run again whenever source PDFs or manifest entries are changed:
+Build commands:
 
 ```powershell
 .\.venv\Scripts\python.exe build_vectorstore.py
-```
-
-Optional: provide a custom manifest path.
-
-```powershell
 .\.venv\Scripts\python.exe build_vectorstore.py --manifest data/corpus_manifest.json
 ```
 
-## Run The Project (3 terminals)
+## Run SAARTHI (3 Terminals)
 
-After dependencies are installed, run exactly as below.
-
-Terminal 1 (root directory):
+Terminal 1 (model server):
 
 ```powershell
 ollama serve
 ```
 
-Terminal 2 (root directory):
+Terminal 2 (backend):
 
 ```powershell
 .\.venv\Scripts\Activate.ps1
 python -m uvicorn backend.app.main:app --reload --port 8000
 ```
 
-Terminal 3 (inside `frontend` folder):
+Terminal 3 (frontend):
 
 ```powershell
 cd frontend
 npm run dev
 ```
 
-## URLs
+## Local URLs
 
 - Frontend: http://localhost:5173
-- Admin Login: http://localhost:5173/admin/login
-- Admin Dashboard: http://localhost:5173/admin/dashboard
 - API docs: http://localhost:8000/docs
-- Health (live): http://localhost:8000/api/v1/health/live
-- Health (ready): http://localhost:8000/api/v1/health/ready
+- Liveness: http://localhost:8000/api/v1/health/live
+- Readiness: http://localhost:8000/api/v1/health/ready
 
-## Default Local Admin
+## Configuration and Security
 
-- Employee ID: `ADMIN001`
-- Password: `AdminPass#2026`
+SAARTHI is environment-variable driven. Keep secrets out of source control.
 
-You can override these with environment variables in `.env`.
+Recommended configuration groups:
 
-Additional admin bootstrap variables:
+- app/runtime settings
+- database path settings
+- authentication/session settings
+- admin upload and ingestion limits
+- notification provider settings
+- model/retrieval settings
 
-- `SAARTHI_ADMIN_EMPLOYEE_ID`
-- `SAARTHI_ADMIN_NAME`
-- `SAARTHI_ADMIN_PASSWORD`
-- `SAARTHI_ADMIN_EMAIL`
+Security best practices:
 
-Database path controls:
+- never commit credentials, secrets, or real tokens
+- use local `.env` files or a secret manager per environment
+- rotate credentials and review access regularly
+- keep production values separate from development defaults
 
-- `SAARTHI_EMPLOYEE_DB_PATH`
-- `SAARTHI_ADMIN_DB_PATH`
-- `SAARTHI_SESSION_DB_PATH`
+## Data Stores
 
-At backend startup, the bootstrap admin is enforced to role `admin` and approval status `approved`.
+SAARTHI uses split SQLite stores for clearer operational boundaries:
 
-## Shared Data Consistency
+- employee store for user profiles and chat history
+- admin store for operational/admin workflows
+- session store for API session state
 
-- Employee profiles, approvals, and chat history are persisted in the Employee DB.
-- Admin credentials and admin operational records (ingestion/backfill/summary/document registry) are persisted in the Admin DB.
-- API login sessions are persisted in the Session DB.
-- Legacy combined database (`data/saarthi_secure.db`) is migrated automatically on startup.
+A legacy combined store can be migrated on startup where applicable.
 
-## User Approval Workflow
-
-- New user registrations are created in `pending` status by default.
-- Registration success message:
-	- `Your request has been sent to the admin. Once approved, you will have access to SAARTHI!`
-- Pending/rejected users cannot log in.
-- Admin can approve/reject requests from the admin portal.
-
-## Email Notification Setup
-
-Approval/rejection notifications are configurable through:
-
-- `SAARTHI_NOTIFICATION_PROVIDER` = `noop` | `console` | `smtp`
-- `SAARTHI_NOTIFICATION_FROM_EMAIL`
-- `SAARTHI_NOTIFICATION_SMTP_HOST`
-- `SAARTHI_NOTIFICATION_SMTP_PORT`
-- `SAARTHI_NOTIFICATION_SMTP_USERNAME`
-- `SAARTHI_NOTIFICATION_SMTP_PASSWORD`
-- `SAARTHI_NOTIFICATION_SMTP_USE_SSL`
-- `SAARTHI_NOTIFICATION_SMTP_USE_STARTTLS`
-
-If notification delivery fails, the admin approval/rejection action still completes and returns a warning.
-
-## Upload Limits and Ingestion
-
-Admin ingestion settings:
-
-- `SAARTHI_ADMIN_UPLOAD_DIRECTORY` (default `data/admin_uploads`)
-- `SAARTHI_ADMIN_UPLOAD_MAX_FILES_PER_JOB` (default `12`)
-- `SAARTHI_ADMIN_UPLOAD_MAX_FILE_SIZE_MB` (default `20`)
-
-Uploaded PDFs are ingested incrementally with persistent job progress, and RAG cache refresh is triggered automatically on completion.
-
-## Optional one-command dev start
-
-You can also use helper scripts:
-
-```powershell
-.\scripts\dev-up.ps1
-.\scripts\dev-down.ps1
-```
-
-## Validation Commands
+## Validation and Testing
 
 Backend tests:
 
@@ -191,15 +213,16 @@ npm run build
 
 ## Troubleshooting
 
-- If `npm run dev` says `ENOENT package.json`, run it inside `frontend`.
-- If backend cannot find dependencies, activate `.venv` in that terminal.
-- If model errors appear, verify `ollama serve` is running and model is pulled.
-- If readiness fails on vector index, rebuild with `build_vectorstore.py`.
-- If vector build fails with manifest validation errors, fix required fields in `data/corpus_manifest.json`.
+- If `npm run dev` reports missing `package.json`, run it inside `frontend/`.
+- If backend imports fail, verify virtual environment activation in that terminal.
+- If model-related requests fail, check that model serving is running and the model is pulled.
+- If readiness fails due to vector index, rebuild using `build_vectorstore.py`.
+- If manifest validation fails, fix required fields in `data/corpus_manifest.json`.
 
-## Project docs
+## Documentation
 
 - `docs/README.md`
 - `docs/phase/`
 - `docs/migration/`
 - `docs/archive/`
+
