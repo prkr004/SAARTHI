@@ -548,6 +548,29 @@ def test_temporal_timeout_error_mapping(client: TestClient, monkeypatch):
     assert body["error"]["code"] == "request_timeout"
 
 
+def test_temporal_model_unavailable_maps_requests_connection_error(client: TestClient, monkeypatch):
+    import requests
+
+    headers = _auth_headers(client, employee_id="EMP4020")
+
+    monkeypatch.setattr("backend.app.api.routers.rag.triage_query_intent", lambda question: "fact_retrieval")
+    monkeypatch.setattr(
+        "backend.app.api.routers.rag.ask_question",
+        lambda **kwargs: (_ for _ in ()).throw(requests.exceptions.ConnectionError("ollama unavailable")),
+    )
+
+    response = client.post(
+        "/api/v1/chat/ask-temporal",
+        headers=headers,
+        json={"question": "What is KYC?", "model_id": "phi:2.7b", "top_k": 4, "comparison_method": "both"},
+    )
+
+    assert response.status_code == 503
+    body = response.json()
+    assert body["success"] is False
+    assert body["error"]["code"] == "model_unavailable"
+
+
 def test_hybrid_ranking_prefers_keyword_signal(monkeypatch):
     import query as query_module
 

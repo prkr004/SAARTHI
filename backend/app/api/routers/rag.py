@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Request, status
 from fastapi.responses import JSONResponse
+from requests.exceptions import RequestException
 
 from models_config import AVAILABLE_MODELS, get_model_by_id, get_recommended_model
 from predefined_responses import get_predefined_response
@@ -246,7 +247,7 @@ def ask(request: Request, payload: AskRequest, _: dict = Depends(get_current_use
             "Vector index is not available.",
             _error_details(str(exc)),
         )
-    except ConnectionError as exc:
+    except (ConnectionError, RequestException) as exc:
         return _failure(
             request,
             status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -528,7 +529,7 @@ def ask_temporal(request: Request, payload: AskTemporalRequest, _: dict = Depend
             "Vector index is not available.",
             _error_details(str(exc)),
         )
-    except ConnectionError as exc:
+    except (ConnectionError, RequestException) as exc:
         return _failure(
             request,
             status.HTTP_503_SERVICE_UNAVAILABLE,
